@@ -9,6 +9,7 @@ import { buildPercentiles } from "../analyzers/percentileAnalyzer.js";
 import { evaluateThresholds } from "../analyzers/thresholdAnalyzer.js";
 import { buildRankings } from "./rankings.js";
 import { readBundleLensVersion } from "../utils/version.js";
+import { buildInsights } from "../analyzers/insightsAnalyzer.js";
 
 export type AnalyzeOptions = {
   mode: "run" | "analyze";
@@ -25,6 +26,8 @@ export async function analyzeBuildDir(
 ): Promise<BundleLensReport> {
   const { mode, buildDirAbs, outputDirAbs, config, build, onStatus } =
     options;
+
+  const analysisStartedAt = Date.now();
 
   let files: FileEntry[] = [];
   onStatus?.("Checking build output directory…");
@@ -47,11 +50,15 @@ export async function analyzeBuildDir(
     summary
   );
 
+  const insights = buildInsights(files, summary);
+
   let audit: BundleLensReport["audit"] = null;
   if (config.audit) {
     onStatus?.("Running npm audit (may take a moment)…");
     audit = await collectNpmAudit(process.cwd());
   }
+
+  const analysisDurationMs = Date.now() - analysisStartedAt;
 
   const report: BundleLensReport = {
     metadata: {
@@ -60,6 +67,7 @@ export async function analyzeBuildDir(
       mode,
       buildDir: buildDirAbs,
       outputDir: outputDirAbs,
+      analysisDurationMs,
     },
     build,
     files,
@@ -69,6 +77,7 @@ export async function analyzeBuildDir(
     percentiles,
     audit,
     thresholds,
+    insights,
   };
 
   return report;

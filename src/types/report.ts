@@ -132,6 +132,68 @@ export type ReportMetadata = {
   mode: "run" | "analyze";
   buildDir: string;
   outputDir: string;
+  /** Wall time spent inside BundleLens for this report (excludes child build when using `run`). */
+  analysisDurationMs: number;
+};
+
+export type SourceMapFootprint = {
+  sourceMapFileCount: number;
+  sourceMapRawBytes: number;
+  deliverableJsCssFileCount: number;
+  deliverableJsCssRawBytes: number;
+  percentOfTotalRawBytesInSourceMaps: number;
+  percentOfFilesThatAreSourceMaps: number;
+};
+
+export type BundleConcentration = {
+  largestFilePath: string | null;
+  largestFileRawBytes: number;
+  largestFilePercentOfTotalRaw: number;
+};
+
+export type CompressionRatioStats = {
+  fileCount: number;
+  medianGzipOverRaw: number | null;
+  meanGzipOverRaw: number | null;
+  medianBrotliOverRaw: number | null;
+  meanBrotliOverRaw: number | null;
+};
+
+export type EmptyFilesInsight = {
+  thresholdBytes: number;
+  count: number;
+  samplePaths: string[];
+};
+
+export type TopLevelFolderStat = {
+  folder: string;
+  fileCount: number;
+  totalRawBytes: number;
+  percentOfTotalRawBytes: number;
+};
+
+export type ProductionMapsInsight = {
+  triggered: boolean;
+  reason: string;
+};
+
+export type NameHashInsight = {
+  withContentHashCount: number;
+  withoutContentHashCount: number;
+  duplicateBasenameFileCount: number;
+};
+
+export type BundleInsights = {
+  sourceMaps: SourceMapFootprint;
+  concentration: BundleConcentration;
+  compressionRatios: {
+    javascript: CompressionRatioStats | null;
+    css: CompressionRatioStats | null;
+  };
+  emptyFiles: EmptyFilesInsight;
+  topLevelFolders: TopLevelFolderStat[];
+  productionMaps: ProductionMapsInsight;
+  nameHash: NameHashInsight;
 };
 
 export type BundleLensReport = {
@@ -144,4 +206,5 @@ export type BundleLensReport = {
   percentiles: Percentiles;
   audit: AuditReport | null;
   thresholds: ThresholdResult[] | null;
+  insights: BundleInsights;
 };

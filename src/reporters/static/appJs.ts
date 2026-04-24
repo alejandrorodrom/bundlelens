@@ -214,7 +214,13 @@ export const APP_JS = `
         el("span", { className: "summary-row-v" }, [
           el("span", { className: modeBadgeClass(mode), text: modeLabel(mode) })
         ])
-      ])
+      ]),
+      typeof m.analysisDurationMs === "number"
+        ? el("div", { className: "summary-row" }, [
+            el("span", { className: "summary-row-k", text: "Analysis time" }),
+            el("span", { className: "summary-row-v", text: formatDurationMs(m.analysisDurationMs) })
+          ])
+        : null
     ]);
     var metaRight = el("div", { className: "summary-meta-block" }, [
       el("h3", { className: "summary-block-title", text: "Paths" }),
@@ -241,6 +247,11 @@ export const APP_JS = `
     var mins = Math.floor(totalSec / 60);
     var secs = totalSec % 60;
     return String(mins) + "m " + String(secs) + "s";
+  }
+
+  function fmtRatioPct(r) {
+    if (r == null || typeof r !== "number" || r !== r) return "—";
+    return (r * 100).toFixed(1) + "%";
   }
 
   function exitBadge(exitCode) {
@@ -585,6 +596,119 @@ export const APP_JS = `
     });
   }
 
+  function buildInsightsSection(report) {
+    var ins = report.insights;
+    if (!ins) return null;
+    var sm = ins.sourceMaps;
+    var conc = ins.concentration;
+    var stack = el("div", { className: "insights-stack" }, []);
+
+    stack.appendChild(el("h3", { className: "audit-subtitle", text: "Source maps vs JS/CSS deliverables" }));
+    stack.appendChild(el("div", { className: "table-scroll" }, [
+      table(
+        ["Metric", "Value"],
+        [
+          [".map files (count)", String(sm.sourceMapFileCount)],
+          [".map bytes (raw)", fmtBytes(sm.sourceMapRawBytes)],
+          ["JS/CSS deliverable files", String(sm.deliverableJsCssFileCount)],
+          ["JS/CSS deliverable bytes (raw)", fmtBytes(sm.deliverableJsCssRawBytes)],
+          ["Source maps % of total raw", sm.percentOfTotalRawBytesInSourceMaps.toFixed(2) + "%"],
+          ["Source maps % of all files", sm.percentOfFilesThatAreSourceMaps.toFixed(2) + "%"]
+        ]
+      )
+    ]));
+
+    stack.appendChild(el("h3", { className: "audit-subtitle", text: "Concentration" }));
+    var concText = conc.largestFilePath
+      ? "Largest file " +
+        conc.largestFilePath +
+        " (" +
+        fmtBytes(conc.largestFileRawBytes) +
+        ") is " +
+        conc.largestFilePercentOfTotalRaw.toFixed(1) +
+        "% of total raw size."
+      : "No indexed files.";
+    stack.appendChild(el("p", { className: "section-lead", text: concText }));
+
+    var cr = ins.compressionRatios;
+    var crRows = [];
+    if (cr.javascript) {
+      crRows.push([
+        "JavaScript",
+        String(cr.javascript.fileCount),
+        fmtRatioPct(cr.javascript.medianGzipOverRaw),
+        fmtRatioPct(cr.javascript.meanGzipOverRaw),
+        fmtRatioPct(cr.javascript.medianBrotliOverRaw),
+        fmtRatioPct(cr.javascript.meanBrotliOverRaw)
+      ]);
+    }
+    if (cr.css) {
+      crRows.push([
+        "CSS",
+        String(cr.css.fileCount),
+        fmtRatioPct(cr.css.medianGzipOverRaw),
+        fmtRatioPct(cr.css.meanGzipOverRaw),
+        fmtRatioPct(cr.css.medianBrotliOverRaw),
+        fmtRatioPct(cr.css.meanBrotliOverRaw)
+      ]);
+    }
+    if (crRows.length) {
+      stack.appendChild(el("h3", { className: "audit-subtitle", text: "Compression (gzip / brotli vs raw)" }));
+      stack.appendChild(el("p", { className: "section-lead", text: "Per-file ratios by type (files with no measurement omitted for that column)." }));
+      stack.appendChild(el("div", { className: "table-scroll" }, [
+        table(
+          ["Type", "Files", "Median gzip/raw", "Mean gzip/raw", "Median brotli/raw", "Mean brotli/raw"],
+          crRows
+        )
+      ]));
+    }
+
+    var ef = ins.emptyFiles;
+    stack.appendChild(el("h3", { className: "audit-subtitle", text: "Tiny / empty files" }));
+    if (ef.count === 0) {
+      stack.appendChild(el("p", { className: "summary-audit-note", text: "No files at or below " + ef.thresholdBytes + " bytes." }));
+    } else {
+      stack.appendChild(el("p", { className: "section-lead", text: String(ef.count) + " file(s) at or below " + ef.thresholdBytes + " bytes (possible placeholders)." }));
+      if (ef.samplePaths && ef.samplePaths.length) {
+        stack.appendChild(el("pre", { className: "raw insights-path-list" }, [
+          document.createTextNode(ef.samplePaths.join(String.fromCharCode(10)))
+        ]));
+      }
+    }
+
+    if (ins.topLevelFolders && ins.topLevelFolders.length) {
+      stack.appendChild(el("h3", { className: "audit-subtitle", text: "Top-level folders (raw bytes)" }));
+      var tfRows = ins.topLevelFolders.map(function (r) {
+        return [r.folder, String(r.fileCount), fmtBytes(r.totalRawBytes), r.percentOfTotalRawBytes.toFixed(1) + "%"];
+      });
+      stack.appendChild(el("div", { className: "table-scroll" }, [
+        table(["Folder", "Files", "Raw", "% of total raw"], tfRows)
+      ]));
+    }
+
+    if (ins.productionMaps && ins.productionMaps.triggered) {
+      stack.appendChild(el("div", { className: "audit-banner warn", text: ins.productionMaps.reason }));
+    }
+
+    var nh = ins.nameHash;
+    stack.appendChild(el("h3", { className: "audit-subtitle", text: "Filenames & duplicates" }));
+    stack.appendChild(el("div", { className: "table-scroll" }, [
+      table(
+        ["Metric", "Value"],
+        [
+          ["Artifacts with content hash in name", String(nh.withContentHashCount)],
+          ["Artifacts without hash in name", String(nh.withoutContentHashCount)],
+          ["Files sharing a basename with another", String(nh.duplicateBasenameFileCount)]
+        ]
+      )
+    ]));
+
+    return section("Insights", stack, {
+      id: "insights",
+      lead: "Derived from the file index: source map footprint, dominance, compression, folder mix, and naming heuristics."
+    });
+  }
+
   var node = document.getElementById("bundlelens-report");
   if (!node) return;
   var report = JSON.parse(node.textContent || "{}");
@@ -615,6 +739,7 @@ export const APP_JS = `
   var build = report.build;
 
   var tocLinks = [["resumen", "Overview"]];
+  if (report.insights) tocLinks.push(["insights", "Insights"]);
   if (build) tocLinks.push(["build", "Build"]);
   if (sum.byType && sum.byType.length) tocLinks.push(["composicion", "Composition"]);
   if (report.files && report.files.length) tocLinks.push(["archivos", "Files"]);
@@ -635,6 +760,11 @@ export const APP_JS = `
     className: "summary-panel",
     lead: "Aggregated metrics and report context."
   }));
+
+  var insightsSection = buildInsightsSection(report);
+  if (insightsSection) {
+    root.appendChild(insightsSection);
+  }
 
   if (build) {
     root.appendChild(section("Build execution", buildExecutionBody(build), {

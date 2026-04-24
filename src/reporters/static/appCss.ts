@@ -644,6 +644,27 @@ section.summary-panel .section-head {
   letter-spacing: 0.05em;
   color: var(--muted);
 }
+
+.insights-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.insights-stack > .audit-subtitle {
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.insights-stack > .audit-subtitle:first-child {
+  margin-top: 0;
+}
+.insights-stack > .table-scroll {
+  margin-bottom: 0.15rem;
+}
+.insights-path-list {
+  max-height: 14rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
 .summary-audit-warn {
   margin: 0;
   font-size: 0.86rem;

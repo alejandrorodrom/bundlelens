@@ -2,6 +2,71 @@ import type { BundleLensReport } from "../types/report.js";
 import { formatBytes } from "./bytes.js";
 import { formatDurationHuman } from "./formatDurationHuman.js";
 
+function fmtRatioPct(r: number | null | undefined): string {
+  if (r == null || Number.isNaN(r)) {
+    return "—";
+  }
+  return `${(r * 100).toFixed(1)}%`;
+}
+
+function appendInsightsSummary(lines: string[], report: BundleLensReport): void {
+  const ins = report.insights;
+  if (!ins) {
+    return;
+  }
+  const sm = ins.sourceMaps;
+  const conc = ins.concentration;
+  lines.push("");
+  lines.push("  Insights");
+  lines.push(
+    `    Source maps (count / raw)   ${sm.sourceMapFileCount} / ${formatBytes(sm.sourceMapRawBytes)}`
+  );
+  lines.push(
+    `    JS/CSS deliverables         ${sm.deliverableJsCssFileCount} files, ${formatBytes(sm.deliverableJsCssRawBytes)} raw`
+  );
+  lines.push(
+    `    Maps % of total raw         ${sm.percentOfTotalRawBytesInSourceMaps.toFixed(2)}%`
+  );
+  if (conc.largestFilePath) {
+    lines.push(
+      `    Largest file                ${conc.largestFilePath} (${formatBytes(conc.largestFileRawBytes)}, ${conc.largestFilePercentOfTotalRaw.toFixed(1)}% of raw)`
+    );
+  }
+  const cr = ins.compressionRatios;
+  if (cr.javascript) {
+    lines.push(
+      `    JS gzip ratio (median/mean) ${fmtRatioPct(cr.javascript.medianGzipOverRaw)} / ${fmtRatioPct(cr.javascript.meanGzipOverRaw)}`
+    );
+  }
+  if (cr.css) {
+    lines.push(
+      `    CSS gzip ratio (median/mean) ${fmtRatioPct(cr.css.medianGzipOverRaw)} / ${fmtRatioPct(cr.css.meanGzipOverRaw)}`
+    );
+  }
+  const ef = ins.emptyFiles;
+  if (ef.count > 0) {
+    lines.push(`    Tiny files (≤${ef.thresholdBytes} B)   ${ef.count}`);
+  }
+  if (ins.topLevelFolders.length > 0) {
+    const top = ins.topLevelFolders[0];
+    lines.push(
+      `    Largest top-level folder    ${top.folder} (${formatBytes(top.totalRawBytes)}, ${top.percentOfTotalRawBytes.toFixed(1)}% of raw)`
+    );
+  }
+  if (ins.productionMaps.triggered) {
+    lines.push(`    Note                        ${ins.productionMaps.reason}`);
+  }
+  const nh = ins.nameHash;
+  lines.push(
+    `    Hashed / plain artifact names ${nh.withContentHashCount} / ${nh.withoutContentHashCount}`
+  );
+  if (nh.duplicateBasenameFileCount > 0) {
+    lines.push(
+      `    Duplicate basenames         ${nh.duplicateBasenameFileCount} file(s)`
+    );
+  }
+}
+
 function formatGeneratedAt(iso: string): string {
   try {
     const d = new Date(iso);
@@ -152,6 +217,14 @@ export function printTerminalSummary(report: BundleLensReport): void {
     `    BundleLens           ${m.bundlelensVersion}`,
     `    Mode                 ${modeLabel(m.mode)}`,
   ];
+
+  if (typeof m.analysisDurationMs === "number") {
+    lines.push(
+      `    Analysis time        ${formatDurationHuman(m.analysisDurationMs)}`
+    );
+  }
+
+  appendInsightsSummary(lines, report);
 
   appendAuditSummary(lines, report);
 
