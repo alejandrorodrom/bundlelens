@@ -614,6 +614,36 @@ section.summary-panel .section-head {
   font-size: 0.78rem;
   color: var(--muted);
 }
+.summary-audit-counts {
+  margin: 0 0 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  font-size: 0.8125rem;
+}
+.summary-audit-count-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  max-width: 22rem;
+}
+.summary-audit-count-k {
+  color: var(--muted);
+}
+.summary-audit-count-v {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+.summary-audit-by-sev {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
 .summary-audit-warn {
   margin: 0;
   font-size: 0.86rem;

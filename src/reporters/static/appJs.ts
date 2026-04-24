@@ -119,6 +119,13 @@ export const APP_JS = `
     return keys;
   }
 
+  function auditCountRow(label, value) {
+    return el("div", { className: "summary-audit-count-row" }, [
+      el("span", { className: "summary-audit-count-k", text: label }),
+      el("span", { className: "summary-audit-count-v", text: String(value) })
+    ]);
+  }
+
   function buildAuditSummarySection(audit) {
     if (!audit) return null;
     var wrap = el("div", { className: "summary-audit" });
@@ -137,10 +144,25 @@ export const APP_JS = `
       wrap.appendChild(el("p", { className: "summary-audit-err", text: audit.message || "The vulnerability analysis could not be completed." }));
       return wrap;
     }
-    wrap.appendChild(el("h3", { className: "summary-block-title", text: "Vulnerabilities (by severity)" }));
+    wrap.appendChild(el("h3", { className: "summary-block-title", text: "Vulnerabilities" }));
+    var d = audit.byDirectness || { direct: 0, transitive: 0, unknown: 0 };
+    var totalV =
+      audit.total != null
+        ? audit.total
+        : (audit.vulnerabilities && audit.vulnerabilities.length) || 0;
+    var countsWrap = el("div", { className: "summary-audit-counts" }, [
+      auditCountRow("Total reported", totalV),
+      auditCountRow("Direct dependencies", d.direct),
+      auditCountRow("Transitive", d.transitive)
+    ]);
+    if (d.unknown > 0) {
+      countsWrap.appendChild(auditCountRow("Unclassified", d.unknown));
+    }
+    wrap.appendChild(countsWrap);
     var sev = audit.bySeverity || {};
     var keys = sortedSeverityKeys(sev);
     if (keys.length) {
+      wrap.appendChild(el("p", { className: "summary-audit-by-sev", text: "By severity" }));
       wrap.appendChild(el("div", { className: "sev-list" }, keys.map(function (k) {
         return el("div", { className: "sev-item" }, [
           severityBadge(k),
@@ -150,10 +172,6 @@ export const APP_JS = `
     } else {
       wrap.appendChild(el("p", { className: "summary-audit-note", text: "No severity breakdown is available in the audit metadata." }));
     }
-    var d = audit.byDirectness || { direct: 0, transitive: 0, unknown: 0 };
-    var hint = "Direct: " + d.direct + " · Transitive: " + d.transitive;
-    if (d.unknown > 0) hint += " · Unclassified: " + d.unknown;
-    wrap.appendChild(el("p", { className: "summary-audit-hint", text: hint }));
     return wrap;
   }
 
@@ -212,10 +230,17 @@ export const APP_JS = `
   }
 
   function formatDurationMs(ms) {
-    var n = Number(ms) || 0;
+    var n = Math.max(0, Math.round(Number(ms) || 0));
     if (n < 1000) return String(n) + " ms";
-    var s = (n / 1000).toFixed(n < 10000 ? 2 : 1);
-    return String(n) + " ms (" + s + " s)";
+    var threeMin = 3 * 60 * 1000;
+    if (n <= threeMin) {
+      var sec = n / 1000;
+      return sec < 10 ? sec.toFixed(2) + " s" : sec.toFixed(1) + " s";
+    }
+    var totalSec = Math.floor(n / 1000);
+    var mins = Math.floor(totalSec / 60);
+    var secs = totalSec % 60;
+    return String(mins) + "m " + String(secs) + "s";
   }
 
   function exitBadge(exitCode) {

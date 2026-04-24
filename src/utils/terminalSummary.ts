@@ -1,5 +1,6 @@
 import type { BundleLensReport } from "../types/report.js";
 import { formatBytes } from "./bytes.js";
+import { formatDurationHuman } from "./formatDurationHuman.js";
 
 function formatGeneratedAt(iso: string): string {
   try {
@@ -87,12 +88,22 @@ function appendAuditSummary(lines: string[], report: BundleLensReport): void {
     lines.push("    By severity        —");
     return;
   }
-  const d = a.byDirectness;
-  lines.push(
-    `    Total                ${a.total ?? a.vulnerabilities.length}  ·  direct ${d.direct}  ·  transitive ${d.transitive}${
-      d.unknown > 0 ? `  ·  unclassified ${d.unknown}` : ""
-    }`
-  );
+  const directness = a.byDirectness ?? {
+    direct: 0,
+    transitive: 0,
+    unknown: 0,
+  };
+  const totalVulns = a.total ?? a.vulnerabilities?.length ?? 0;
+  const labelCol = 26;
+  const row = (label: string, value: number | string): void => {
+    lines.push(`    ${label.padEnd(labelCol)}${value}`);
+  };
+  row("Total reported", totalVulns);
+  row("Direct dependencies", directness.direct);
+  row("Transitive", directness.transitive);
+  if (directness.unknown > 0) {
+    row("Unclassified", directness.unknown);
+  }
   const keys = sortedSeverityKeys(a.bySeverity || {});
   if (keys.length) {
     lines.push("    By severity:");
@@ -154,9 +165,11 @@ export function printTerminalSummary(report: BundleLensReport): void {
     const code =
       b.exitCode === null || b.exitCode === undefined ? "n/a" : String(b.exitCode);
     lines.push("");
-    lines.push("  Build (this run)");
+    lines.push("  Build");
     lines.push(`    Exit code            ${code}`);
-    lines.push(`    Duration             ${b.durationMs} ms`);
+    lines.push(
+      `    Duration             ${formatDurationHuman(b.durationMs ?? 0)}`
+    );
   }
 
   lines.push("");

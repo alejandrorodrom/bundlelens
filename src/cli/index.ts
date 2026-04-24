@@ -91,12 +91,8 @@ cli
       spin.stop("Build output analysis complete");
 
       spin.start("Writing report (HTML + JSON)…");
-      const { filesPath } = await generateReport(report, outputDirAbs);
-      const extras = ["rankings.html"];
-      if (filesPath) extras.unshift("files.html");
-      spin.stop(
-        `Report written to ${outputDirAbs} (index.html + ${extras.join(" + ")})`
-      );
+      await generateReport(report, outputDirAbs);
+      spin.stop(`Report written to ${outputDirAbs}`);
       printTerminalSummary(report);
     } catch (e) {
       spin.fail(e instanceof Error ? e.message : "Error while running bundlelens");
