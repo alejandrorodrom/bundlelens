@@ -1,5 +1,14 @@
 export const APP_JS = `
 (function () {
+  (function setupPdfButton() {
+    var pdfBtn = document.getElementById("bundlelens-pdf");
+    if (pdfBtn) {
+      pdfBtn.addEventListener("click", function () {
+        window.print();
+      });
+    }
+  })();
+
   function fmtBytes(n) {
     if (n === 0) return "0 B";
     var u = ["B", "KB", "MB", "GB"];
@@ -34,7 +43,7 @@ export const APP_JS = `
     return el("table", { className: tc }, [thead, tb]);
   }
 
-  /** opts: { id?, className?, lead? } */
+  /** opts: { id?, className?, lead?, leadClassName? } */
   function section(title, body, opts) {
     opts = opts || {};
     var classes = ["bl-section"];
@@ -42,7 +51,10 @@ export const APP_JS = `
     var attrs = { className: classes.join(" ") };
     if (opts.id) attrs.id = opts.id;
     var headKids = [el("h2", { className: "section-title", text: title })];
-    if (opts.lead) headKids.push(el("p", { className: "section-lead", text: opts.lead }));
+    if (opts.lead) {
+      var leadCls = "section-lead" + (opts.leadClassName ? " " + opts.leadClassName : "");
+      headKids.push(el("p", { className: leadCls, text: opts.lead }));
+    }
     var head = el("div", { className: "section-head" }, headKids);
     var inner = el("div", { className: "section-body" }, [body]);
     return el("section", attrs, [head, inner]);
@@ -545,7 +557,8 @@ export const APP_JS = `
     var filesWrap = el("div", { className: "table-scroll" }, [filesTable]);
     return section("Files", filesWrap, {
       id: "archivos",
-      lead: "Complete list (" + files.length + " files). Scroll horizontally if needed."
+      lead: "Complete list (" + files.length + " files). Scroll horizontally if needed.",
+      leadClassName: "no-print"
     });
   }
 
@@ -557,6 +570,7 @@ export const APP_JS = `
     ]);
     return section("Files", box, {
       id: "archivos",
+      className: "no-print",
       lead: "Executive view with a link to file-level details."
     });
   }
@@ -581,7 +595,8 @@ export const APP_JS = `
     });
     return section("Rankings", tabGroup("rk", rkItems), {
       id: "rankings",
-      lead: "Largest paths by size. Use ← → when a tab is focused."
+      lead: "Largest paths by size. Use ← → when a tab is focused.",
+      leadClassName: "no-print"
     });
   }
 
@@ -592,6 +607,7 @@ export const APP_JS = `
     ]);
     return section("Rankings", box, {
       id: "rankings",
+      className: "no-print",
       lead: "Executive view with a link to full ranking tables."
     });
   }
@@ -899,14 +915,20 @@ export const APP_JS = `
     }));
   }
 
-  var jsonStr = JSON.stringify(report, null, 2);
+  var jsonPre = el("pre", { className: "raw" }, []);
   var jsonBlock = el("details", { className: "json-details" }, [
-    el("summary", { className: "json-summary", text: "Show full report JSON" }),
-    el("pre", { className: "raw" }, [document.createTextNode(jsonStr)])
+    el("summary", { className: "json-summary", text: "Show full report JSON (preview)" }),
+    jsonPre
   ]);
+  jsonBlock.addEventListener("toggle", function () {
+    if (!jsonBlock.open || jsonPre.getAttribute("data-populated") === "1") return;
+    jsonPre.textContent = JSON.stringify(report, null, 2);
+    jsonPre.setAttribute("data-populated", "1");
+  });
   root.appendChild(section("Raw JSON data", jsonBlock, {
     id: "json",
-    lead: "Optional: inspect or copy the full payload for integrations and debugging."
+    className: "no-print",
+    lead: "Use Download JSON in the header for the full file. Expand below for an in-page preview only."
   }));
 })();
 `;

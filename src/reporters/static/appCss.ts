@@ -46,11 +46,77 @@ a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
 }
+.bl-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+}
+.bl-header-titles {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
 .bl-header h1 {
   margin: 0 0 0.35rem;
   font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+.bl-pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.bl-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.bl-action-btn {
+  padding: 0.45rem 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+}
+a.bl-action-link {
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+.bl-action-btn:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+.bl-action-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+.bl-pdf-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+  max-width: 36ch;
+  text-align: right;
+}
+.bl-pdf-hint code {
+  font-size: 0.88em;
+  padding: 0.08rem 0.3rem;
+  background: #0b0f14;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text);
 }
 .bl-sub {
   margin: 0;
@@ -103,9 +169,12 @@ a:hover { text-decoration: underline; }
   text-decoration: none;
 }
 main {
-  padding: 1.25rem 1.25rem 3.5rem;
+  padding: 1.25rem 1.25rem 1.75rem;
   max-width: 1180px;
   margin: 0 auto;
+}
+#root > .bl-section:last-child {
+  margin-bottom: 0;
 }
 @media (min-width: 768px) {
   main { padding-left: 1.75rem; padding-right: 1.75rem; }
@@ -264,6 +333,14 @@ pre.raw {
   border: none;
   border-radius: 0;
   max-height: min(65vh, 480px);
+}
+.json-details:not([open]) .raw {
+  display: none !important;
+  max-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
 }
 
 .grid2 {
@@ -763,5 +840,78 @@ section.summary-panel .section-head {
 .mode-unknown {
   background: #2b3240;
   color: var(--text);
+}
+
+@page {
+  margin: 0;
+  size: auto;
+}
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html {
+    scroll-behavior: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .no-print,
+  .skip-link,
+  .toc {
+    display: none !important;
+  }
+  .bl-header {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.45rem 0.5rem 0.55rem;
+    break-inside: avoid;
+    break-after: avoid;
+  }
+  .bl-header-inner {
+    max-width: none;
+    width: 100%;
+  }
+  /* Allow long tables/tabs to span pages; avoid was forcing the whole block to page 2. */
+  .bl-section {
+    width: 100%;
+    box-sizing: border-box;
+    break-inside: auto;
+    page-break-inside: auto;
+    overflow: visible;
+  }
+  .data-table {
+    width: 100%;
+  }
+  .section-head {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  main {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0.35rem 0 0.5rem !important;
+    box-sizing: border-box;
+  }
+  #root {
+    width: 100%;
+    max-width: none;
+  }
+  .table-scroll,
+  .panel-scroll {
+    overflow: visible !important;
+  }
+  .files-table {
+    min-width: 0;
+  }
 }
 `;
