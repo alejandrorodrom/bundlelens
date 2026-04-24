@@ -1,0 +1,130 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import type {
+  BundleLensConfig,
+  ResolvedConfig,
+  ResolvedThresholds,
+} from "../types/config.js";
+
+const DEFAULT_CONFIG_NAMES = ["bundlelens.config.json"];
+
+const defaultCompression = { gzip: true, brotli: true };
+
+export async function findConfigFile(
+  cwd: string,
+  explicitPath?: string
+): Promise<string | undefined> {
+  if (explicitPath) {
+    const abs = path.resolve(cwd, explicitPath);
+    try {
+      await fs.access(abs);
+      return abs;
+    } catch {
+      return undefined;
+    }
+  }
+  for (const name of DEFAULT_CONFIG_NAMES) {
+    const p = path.join(cwd, name);
+    try {
+      await fs.access(p);
+      return p;
+    } catch {
+      /* continue */
+    }
+  }
+  return undefined;
+}
+
+async function readJsonConfig(filePath: string): Promise<BundleLensConfig> {
+  const raw = await fs.readFile(filePath, "utf8");
+  return JSON.parse(raw) as BundleLensConfig;
+}
+
+/** Ruta absoluta al directorio de build, o undefined si no se definió. */
+function resolveBuildDirAbs(
+  cwd: string,
+  configPath: string | undefined,
+  override: string | undefined,
+  fromFile: string | undefined
+): string | undefined {
+  const trimmedOverride = override?.trim();
+  if (trimmedOverride) {
+    return path.resolve(cwd, trimmedOverride);
+  }
+  const trimmedFile = fromFile?.trim();
+  if (!trimmedFile) {
+    return undefined;
+  }
+  if (path.isAbsolute(trimmedFile)) {
+    return path.normalize(trimmedFile);
+  }
+  if (configPath) {
+    return path.resolve(path.dirname(configPath), trimmedFile);
+  }
+  return path.resolve(cwd, trimmedFile);
+}
+
+export type CliOverrides = {
+  buildCommand?: string;
+  buildDir?: string;
+  outputDir?: string;
+  audit?: boolean;
+  configPath?: string;
+};
+
+export async function resolveConfig(
+  cwd: string,
+  overrides: CliOverrides
+): Promise<ResolvedConfig> {
+  const configPath = await findConfigFile(cwd, overrides.configPath);
+  let fileConfig: BundleLensConfig = {};
+  if (configPath) {
+    fileConfig = await readJsonConfig(configPath);
+  }
+
+  let audit: boolean;
+  if (overrides.audit !== undefined) {
+    audit = overrides.audit;
+  } else if (fileConfig.audit !== undefined) {
+    audit = Boolean(fileConfig.audit);
+  } else {
+    audit = true;
+  }
+
+  const compression = {
+    gzip:
+      fileConfig.compression?.gzip !== undefined
+        ? Boolean(fileConfig.compression.gzip)
+        : defaultCompression.gzip,
+    brotli:
+      fileConfig.compression?.brotli !== undefined
+        ? Boolean(fileConfig.compression.brotli)
+        : defaultCompression.brotli,
+  };
+
+  const thresholds: ResolvedThresholds = {
+    enabled: Boolean(fileConfig.thresholds?.enabled),
+    categories: fileConfig.thresholds?.categories ?? {},
+  };
+
+  const outputRel =
+    overrides.outputDir ?? fileConfig.outputDir ?? "bundlelens";
+
+  const buildDirAbs = resolveBuildDirAbs(
+    cwd,
+    configPath,
+    overrides.buildDir,
+    fileConfig.buildDir
+  );
+
+  return {
+    buildCommand:
+      overrides.buildCommand ?? fileConfig.buildCommand ?? undefined,
+    buildDir: buildDirAbs,
+    outputDir: path.resolve(cwd, outputRel),
+    audit,
+    compression,
+    thresholds,
+    configPath,
+  };
+}

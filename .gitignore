@@ -1,0 +1,35 @@
+# dependencias
+node_modules/
+
+# compilado
+dist/
+*.tsbuildinfo
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# entorno
+.env
+.env.*
+!.env.example
+
+# informe local del CLI (salida por defecto)
+/bundlelens/
+
+# cobertura / caches
+coverage/
+.nyc_output/
+.cache/
+
+# sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo

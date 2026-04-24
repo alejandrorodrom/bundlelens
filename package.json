@@ -1,0 +1,41 @@
+{
+  "name": "bundlelens",
+  "version": "0.1.0",
+  "description": "Herramienta agnóstica para medir y visualizar datos objetivos de builds JavaScript/TypeScript",
+  "type": "module",
+  "bin": {
+    "bundlelens": "./dist/cli/index.js"
+  },
+  "main": "./dist/cli/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "build",
+    "bundle",
+    "analysis",
+    "metrics",
+    "report"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cac": "^6.7.14",
+    "execa": "^9.5.2",
+    "fast-glob": "^3.3.3",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.14.0",
+    "typescript": "^5.8.2"
+  }
+}
