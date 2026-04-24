@@ -6,7 +6,9 @@ import type {
   ResolvedThresholds,
 } from "../types/config.js";
 
-const DEFAULT_CONFIG_NAMES = ["bundlelens.config.json"];
+export const BUNDLELENS_CONFIG_FILENAME = "bundlelens.config.json";
+
+const DEFAULT_CONFIG_NAMES = [BUNDLELENS_CONFIG_FILENAME];
 
 const defaultCompression = { gzip: true, brotli: true };
 
@@ -69,6 +71,8 @@ export type CliOverrides = {
   buildDir?: string;
   outputDir?: string;
   audit?: boolean;
+  /** Si se define, sustituye `failOnBuild` del archivo de configuración. */
+  failOnBuild?: boolean;
   configPath?: string;
 };
 
@@ -89,6 +93,15 @@ export async function resolveConfig(
     audit = Boolean(fileConfig.audit);
   } else {
     audit = true;
+  }
+
+  let failOnBuild: boolean;
+  if (overrides.failOnBuild !== undefined) {
+    failOnBuild = overrides.failOnBuild;
+  } else if (fileConfig.failOnBuild !== undefined) {
+    failOnBuild = Boolean(fileConfig.failOnBuild);
+  } else {
+    failOnBuild = false;
   }
 
   const compression = {
@@ -123,6 +136,7 @@ export async function resolveConfig(
     buildDir: buildDirAbs,
     outputDir: path.resolve(cwd, outputRel),
     audit,
+    failOnBuild,
     compression,
     thresholds,
     configPath,

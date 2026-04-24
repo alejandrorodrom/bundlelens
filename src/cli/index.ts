@@ -8,6 +8,7 @@ import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { generateReport } from "../core/generateReport.js";
 import { createSpinner } from "../utils/spinner.js";
 import { printTerminalSummary } from "../utils/terminalSummary.js";
+import { runInit } from "./init.js";
 
 function auditFromArgv(argv: string[]): boolean | undefined {
   const no = argv.includes("--no-audit");
@@ -21,10 +22,23 @@ function auditFromArgv(argv: string[]): boolean | undefined {
   return undefined;
 }
 
+function failOnBuildFromArgv(argv: string[]): boolean | undefined {
+  if (argv.includes("--no-fail-on-build")) {
+    return false;
+  }
+  if (argv.includes("--fail-on-build")) {
+    return true;
+  }
+  return undefined;
+}
+
 const cli = cac("bundlelens");
 
 cli
-  .command("run <buildCommand>", "Run the build command and analyze output")
+  .command(
+    "run [buildCommand]",
+    "Run the build command and analyze output (command optional if set in config)"
+  )
   .option("--build-dir <dir>", "Build output directory to analyze")
   .option("--output <dir>", "Report output directory (default: ./bundlelens)")
   .option("--config <file>", "Path to bundlelens.config.json")
@@ -33,20 +47,31 @@ cli
     "Run npm audit (on by default; use to override audit:false in config)"
   )
   .option("--no-audit", "Skip npm audit for this run")
-  .action(async (buildCommand: string, options: Record<string, unknown>) => {
+  .option(
+    "--fail-on-build",
+    "Exit with the build command's non-zero exit code (off by default; see failOnBuild in config)"
+  )
+  .option(
+    "--no-fail-on-build",
+    "Do not propagate build exit code even if failOnBuild is true in config"
+  )
+  .action(async (buildCommand: string | undefined, options: Record<string, unknown>) => {
     const cwd = process.cwd();
     const argv = process.argv;
+    const cliCmd = buildCommand?.trim();
     const config = await resolveConfig(cwd, {
-      buildCommand,
+      buildCommand: cliCmd || undefined,
       buildDir: options.buildDir as string | undefined,
       outputDir: options.output as string | undefined,
       audit: auditFromArgv(argv),
+      failOnBuild: failOnBuildFromArgv(argv),
       configPath: options.config as string | undefined,
     });
 
-    if (!buildCommand || !String(buildCommand).trim()) {
+    const resolvedCmd = config.buildCommand?.trim();
+    if (!resolvedCmd) {
       console.error(
-        'Provide a build command, e.g. bundlelens run "npm run build"'
+        'Missing build command: pass bundlelens run "npm run build" or set buildCommand in bundlelens.config.json.'
       );
       process.exitCode = 1;
       return;
@@ -67,7 +92,7 @@ cli
     spin.start("Running build command…");
     let build;
     try {
-      const result = await runBuild(buildCommand, cwd, outputDirAbs);
+      const result = await runBuild(resolvedCmd, cwd, outputDirAbs);
       build = result.build;
       const secs = (build.durationMs / 1000).toFixed(1);
       const ok = build.exitCode === 0 || build.exitCode === null;
@@ -100,8 +125,12 @@ cli
       return;
     }
 
-    if (build.exitCode !== 0) {
-      process.exitCode = build.exitCode ?? 1;
+    if (
+      config.failOnBuild &&
+      typeof build.exitCode === "number" &&
+      build.exitCode !== 0
+    ) {
+      process.exitCode = build.exitCode;
     }
   });
 
@@ -159,6 +188,23 @@ cli
     if (filesPath) {
       console.log(`Files: ${outputDirAbs}/files.html`);
     }
+  });
+
+cli
+  .command("init", "Create bundlelens.config.json (with examples) and update .gitignore")
+  .option("--force", "Overwrite existing bundlelens.config.json")
+  .option("--skip-gitignore", "Do not append report dir to .gitignore")
+  .option(
+    "--output <dir>",
+    "Report output directory written in config (default: bundlelens)"
+  )
+  .action(async (options: Record<string, unknown>) => {
+    await runInit({
+      cwd: process.cwd(),
+      force: Boolean(options.force),
+      skipGitignore: Boolean(options.skipGitignore),
+      outputDir: options.output as string | undefined,
+    });
   });
 
 cli.help();

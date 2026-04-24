@@ -34,6 +34,11 @@ export type BundleLensConfig = {
   outputDir?: string;
   /** Por defecto se ejecuta `npm audit`. Pon `false` para omitirlo sin usar la CLI. `--no-audit` en la CLI tiene prioridad. */
   audit?: boolean;
+  /**
+   * Si es true, el proceso termina con el código de salida del comando de build cuando no es 0.
+   * Por defecto false: si el análisis y el informe terminan bien, el exit code es 0 aunque el build devolviera error.
+   */
+  failOnBuild?: boolean;
   compression?: Partial<CompressionConfig>;
   thresholds?: Partial<ThresholdsConfig>;
 };
@@ -48,6 +53,7 @@ export type ResolvedConfig = {
   buildDir: string | undefined;
   outputDir: string;
   audit: boolean;
+  failOnBuild: boolean;
   compression: ResolvedCompression;
   thresholds: ResolvedThresholds;
   configPath: string | undefined;
