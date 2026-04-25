@@ -4,6 +4,7 @@ import type { BundleLensConfig } from "../types/config.js";
 import { BUNDLELENS_CONFIG_FILENAME } from "../utils/config.js";
 
 const BUILD_DIR_CANDIDATES = ["dist", "build", "out", ".next"] as const;
+const BUNDLELENS_SCHEMA_URL = "./bundlelens.schema.json";
 
 async function pathIsDir(abs: string): Promise<boolean> {
   try {
@@ -94,10 +95,14 @@ function buildInitConfig(
   buildCommandExample: string
 ): BundleLensConfig {
   return {
+    $schema: BUNDLELENS_SCHEMA_URL,
     buildCommand: buildCommandExample,
     buildDir,
     outputDir,
     audit: true,
+    install: {
+      command: "npm ci",
+    },
     compression: {
       gzip: true,
       brotli: true,

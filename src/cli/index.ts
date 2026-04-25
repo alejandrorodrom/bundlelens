@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import path from "node:path";
 import process from "node:process";
+import { input } from "@inquirer/prompts";
 import { cac } from "cac";
 import { resolveConfig } from "../utils/config.js";
 import { readBundleLensVersion } from "../utils/version.js";
@@ -7,8 +9,21 @@ import { runBuild } from "../core/runBuild.js";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { generateReport } from "../core/generateReport.js";
 import { createSpinner } from "../utils/spinner.js";
+import { ensureDependenciesIfNeeded } from "../utils/dependencies.js";
 import { printTerminalSummary } from "../utils/terminalSummary.js";
 import { runInit } from "./init.js";
+import { runCompare } from "./compare.js";
+
+function printAnalyzerNotices(notices: string[]): void {
+  if (notices.length === 0) return;
+  const warningIcon = process.stderr.isTTY ? "\x1b[33m⚠\x1b[0m" : "⚠";
+  console.warn("");
+  console.warn(`${warningIcon} Analyzer notices`);
+  for (const n of notices) {
+    console.warn(`  - ${n}`);
+  }
+  console.warn("");
+}
 
 function auditFromArgv(argv: string[]): boolean | undefined {
   const no = argv.includes("--no-audit");
@@ -30,6 +45,22 @@ function failOnBuildFromArgv(argv: string[]): boolean | undefined {
     return true;
   }
   return undefined;
+}
+
+async function promptRequiredValue(options: {
+  message: string;
+  validateMessage: string;
+}): Promise<string> {
+  const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  if (!tty) {
+    throw new Error(options.validateMessage);
+  }
+  return (
+    await input({
+      message: options.message,
+      validate: (v) => (v.trim().length > 0 ? true : options.validateMessage),
+    })
+  ).trim();
 }
 
 const cli = cac("bundlelens");
@@ -68,22 +99,39 @@ cli
       configPath: options.config as string | undefined,
     });
 
-    const resolvedCmd = config.buildCommand?.trim();
+    let resolvedCmd = config.buildCommand?.trim();
     if (!resolvedCmd) {
-      console.error(
-        'Missing build command: pass bundlelens run "npm run build" or set buildCommand in bundlelens.config.json.'
-      );
-      process.exitCode = 1;
-      return;
+      try {
+        resolvedCmd = await promptRequiredValue({
+          message:
+            'Missing build command in config/flags. Enter build command (e.g. "npm run build")',
+          validateMessage: "Build command is required.",
+        });
+      } catch {
+        console.error(
+          'Missing build command: set buildCommand in bundlelens.config.json, pass `bundlelens run "<cmd>"`, or run in an interactive terminal.'
+        );
+        process.exitCode = 1;
+        return;
+      }
     }
 
-    const buildDirAbs = config.buildDir;
+    let buildDirAbs = config.buildDir;
     if (!buildDirAbs) {
-      console.error(
-        "Missing build directory: use --build-dir or set buildDir in bundlelens.config.json."
-      );
-      process.exitCode = 1;
-      return;
+      try {
+        const raw = await promptRequiredValue({
+          message:
+            "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
+          validateMessage: "buildDir is required.",
+        });
+        buildDirAbs = path.resolve(cwd, raw);
+      } catch {
+        console.error(
+          "Missing build directory: set buildDir in bundlelens.config.json, pass --build-dir, or run in an interactive terminal."
+        );
+        process.exitCode = 1;
+        return;
+      }
     }
 
     const outputDirAbs = config.outputDir;
@@ -92,6 +140,12 @@ cli
     spin.start("Running build command…");
     let build;
     try {
+      await ensureDependenciesIfNeeded({
+        label: "run",
+        cwd,
+        onStatus: (msg) => spin.update(msg),
+        preferredCommand: config.install?.command,
+      });
       const result = await runBuild(resolvedCmd, cwd, outputDirAbs);
       build = result.build;
       const secs = (build.durationMs / 1000).toFixed(1);
@@ -114,10 +168,12 @@ cli
         },
       });
       spin.stop("Build output analysis complete");
+      const notices = report.metadata.analysisNotices ?? [];
+      printAnalyzerNotices(notices);
 
-      spin.start("Writing report (HTML + JSON)…");
+      spin.start("Writing report…");
       await generateReport(report, outputDirAbs);
-      spin.stop(`Report written to ${outputDirAbs}`);
+      spin.stop("Report written.");
       printTerminalSummary(report);
     } catch (e) {
       spin.fail(e instanceof Error ? e.message : "Error while running bundlelens");
@@ -163,13 +219,22 @@ cli
       configPath: options.config as string | undefined,
     });
 
-    const buildDirAbs = config.buildDir;
+    let buildDirAbs = config.buildDir;
     if (!buildDirAbs) {
-      console.error(
-        "Missing build directory: bundlelens analyze <dir>, use --build-dir, or set buildDir in bundlelens.config.json."
-      );
-      process.exitCode = 1;
-      return;
+      try {
+        const raw = await promptRequiredValue({
+          message:
+            "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
+          validateMessage: "buildDir is required.",
+        });
+        buildDirAbs = path.resolve(cwd, raw);
+      } catch {
+        console.error(
+          "Missing build directory: use analyze <dir>, --build-dir, set buildDir in bundlelens.config.json, or run in an interactive terminal."
+        );
+        process.exitCode = 1;
+        return;
+      }
     }
 
     const outputDirAbs = config.outputDir;
@@ -181,12 +246,66 @@ cli
       config,
       build: null,
     });
+    const notices = report.metadata.analysisNotices ?? [];
+    printAnalyzerNotices(notices);
     const { filesPath } = await generateReport(report, outputDirAbs);
     printTerminalSummary(report);
     console.log(`Report: ${outputDirAbs}/index.html`);
     console.log(`Rankings: ${outputDirAbs}/rankings.html`);
     if (filesPath) {
       console.log(`Files: ${outputDirAbs}/files.html`);
+    }
+  });
+
+cli
+  .command(
+    "compare",
+    "Build and analyze two Git branches side by side (worktrees + compare report)"
+  )
+  .option("--base <ref>", "Git base branch or ref")
+  .option("--head <ref>", "Git head branch or ref (changes)")
+  .option(
+    "--build-command <cmd>",
+    "Build command to use for both sides in compare (fallback when branch config is missing)"
+  )
+  .option(
+    "--build-dir <dir>",
+    "Build output directory to use for both sides in compare (fallback when branch config is missing)"
+  )
+  .option(
+    "--output <dir>",
+    "Compare report output directory (default: <outputDir>/compare from config)"
+  )
+  .option("--config <file>", "Path to bundlelens.config.json")
+  .option("--audit", "Run npm audit (default from config)")
+  .option("--no-audit", "Skip npm audit")
+  .option(
+    "--fail-on-build",
+    "Exit non-zero if either side's build command exits non-zero"
+  )
+  .option(
+    "--no-fail-on-build",
+    "Do not propagate build exit codes from either side"
+  )
+  .action(async (options: Record<string, unknown>) => {
+    const cwd = process.cwd();
+    const argv = process.argv;
+    try {
+      await runCompare({
+        cwd,
+        argv,
+        baseFlag: options.base as string | undefined,
+        headFlag: options.head as string | undefined,
+        buildCommandFlag: options.buildCommand as string | undefined,
+        buildDirFlag: options.buildDir as string | undefined,
+        outputFlag: options.output as string | undefined,
+        configFlag: options.config as string | undefined,
+        audit: auditFromArgv(argv),
+        failOnBuild: failOnBuildFromArgv(argv),
+      });
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exitCode = 1;
     }
   });
 

@@ -532,6 +532,57 @@ export const APP_JS = `
     return wrap;
   }
 
+  /** Same UX pattern as the single-report audit block, for one side of compare. */
+  function buildAuditCompareSide(audit, sideTitle) {
+    var box = el("div", { className: "compare-audit-side" }, []);
+    box.appendChild(el("h3", { className: "audit-subtitle compare-audit-side-title", text: sideTitle }));
+    if (!audit) {
+      box.appendChild(el("p", { className: "section-lead", text: "No vulnerability scan for this side." }));
+      return box;
+    }
+    var sev = audit.bySeverity || {};
+    var aw = el("div", { className: "compare-audit-side-body" }, []);
+    var directness = audit.byDirectness || { direct: 0, transitive: 0, unknown: 0 };
+    aw.appendChild(kvGrid([
+      ["Total", audit.total == null ? "n/a" : String(audit.total)],
+      ["Direct", String(directness.direct || 0)],
+      ["Transitive", String(directness.transitive || 0)],
+      ["Unclassified", String(directness.unknown || 0)]
+    ]));
+    if (audit.status === "requires_internet") {
+      aw.appendChild(infoBanner("warn", audit.message || "Internet access is required."));
+    } else if (audit.status === "clean") {
+      aw.appendChild(infoBanner("ok", "✔ No vulnerabilities were found."));
+    } else if (audit.status === "error") {
+      aw.appendChild(infoBanner("error", audit.message || "Vulnerability analysis could not be completed."));
+    }
+    var sevKeys = Object.keys(sev);
+    if (sevKeys.length) {
+      var sevWrap = el("div", { className: "sev-list" }, sevKeys.map(function (k) {
+        return el("div", { className: "sev-item" }, [
+          severityBadge(k),
+          el("span", { className: "sev-count", text: String(sev[k]) })
+        ]);
+      }));
+      aw.appendChild(sevWrap);
+    }
+    if (audit.vulnerabilities && audit.vulnerabilities.length) {
+      var direct = audit.vulnerabilities.filter(function (v) { return v.isDirect === true; });
+      var transitive = audit.vulnerabilities.filter(function (v) { return v.isDirect === false; });
+      var unknown = audit.vulnerabilities.filter(function (v) { return v.isDirect == null; });
+      var cols = el("div", { className: "vuln-columns" }, []);
+      if (direct.length) cols.appendChild(vulnerabilitiesTable(direct, "Direct"));
+      if (transitive.length) cols.appendChild(vulnerabilitiesTable(transitive, "Transitive"));
+      aw.appendChild(cols);
+      if (unknown.length) {
+        aw.appendChild(el("h3", { className: "audit-subtitle", text: "Unclassified" }));
+        aw.appendChild(vulnerabilitiesTable(unknown, "Unclassified"));
+      }
+    }
+    box.appendChild(aw);
+    return box;
+  }
+
   function buildFullFilesSection(report) {
     var files = report.files || [];
     if (!files.length) return null;
@@ -725,6 +776,445 @@ export const APP_JS = `
     });
   }
 
+  function scrollToCmp(id) {
+    var eln = document.getElementById(id);
+    if (eln) eln.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function fmtDeltaBytes(before, after) {
+    var d = (after || 0) - (before || 0);
+    if (d === 0) return { text: "0 B", cls: "delta-zero", hint: "" };
+    var bad = d > 0;
+    var sign = d > 0 ? "+" : "−";
+    return {
+      text: sign + fmtBytes(Math.abs(d)),
+      cls: bad ? "delta-pos" : "delta-neg",
+      hint: bad ? "heavier on head" : "lighter on head"
+    };
+  }
+
+  function fmtDeltaInt(before, after) {
+    var d = (after || 0) - (before || 0);
+    if (d === 0) return { text: "0", cls: "delta-zero", hint: "" };
+    var sign = d > 0 ? "+" : "";
+    return { text: sign + String(d), cls: "delta-zero", hint: "" };
+  }
+
+  function deltaTd(d) {
+    var symbol = "=";
+    if (d.cls === "delta-pos") symbol = "▲";
+    else if (d.cls === "delta-neg") symbol = "▼";
+    var kids = [
+      el("span", { className: "delta-symbol " + d.cls, text: symbol }),
+      document.createTextNode(" " + d.text)
+    ];
+    if (d.hint) kids.push(el("span", { className: "delta-hint", text: d.hint }));
+    return el("td", { className: "num " + d.cls }, kids);
+  }
+
+  function cmpMetricTable(rows) {
+    return el("div", { className: "compare-table-wrap" }, [
+      el("table", { className: "data-table compare-diff-table" }, [
+        el("thead", null, [
+          el("tr", null, [
+            "Metric",
+            "Base",
+            "Head",
+            "Δ (head − base)"
+          ].map(function (h) {
+            return el("th", { scope: "col" }, [document.createTextNode(h)]);
+          }))
+        ]),
+        el("tbody", null, rows.map(function (r) {
+          return el("tr", null, [
+            el("td", { className: "metric" }, [document.createTextNode(r[0])]),
+            el("td", { className: "num" }, [document.createTextNode(r[1])]),
+            el("td", { className: "num" }, [document.createTextNode(r[2])]),
+            deltaTd(r[3])
+          ]);
+        }))
+      ])
+    ]);
+  }
+
+  function buildTopPathsSection(base, head) {
+    var mapB = {};
+    (base.rankings && base.rankings.filesByRawBytes || []).slice(0, 40).forEach(function (x) {
+      mapB[x.path] = x.bytes;
+    });
+    var mapH = {};
+    (head.rankings && head.rankings.filesByRawBytes || []).slice(0, 40).forEach(function (x) {
+      mapH[x.path] = x.bytes;
+    });
+    var paths = {};
+    Object.keys(mapB).forEach(function (p) { paths[p] = 1; });
+    Object.keys(mapH).forEach(function (p) { paths[p] = 1; });
+    var pathList = Object.keys(paths).sort();
+    var rkRows = pathList.map(function (p) {
+      var vb = mapB[p];
+      var vh = mapH[p];
+      var bStr = vb != null ? fmtBytes(vb) : "—";
+      var hStr = vh != null ? fmtBytes(vh) : "—";
+      var dObj = vb != null && vh != null
+        ? fmtDeltaBytes(vb, vh)
+        : { text: "—", cls: "delta-zero", hint: "" };
+      return [p, bStr, hStr, dObj];
+    }).slice(0, 50);
+    var rkTable = el("div", { className: "compare-table-wrap" }, [
+      el("table", { className: "data-table compare-diff-table" }, [
+        el("thead", null, [
+          el("tr", null, ["Path (top raw)", "Base", "Head", "Δ"].map(function (h) {
+            return el("th", { scope: "col" }, [document.createTextNode(h)]);
+          }))
+        ]),
+        el("tbody", null, rkRows.map(function (r) {
+          return el("tr", null, [
+            el("td", { className: "metric" }, [document.createTextNode(r[0])]),
+            el("td", { className: "num" }, [document.createTextNode(r[1])]),
+            el("td", { className: "num" }, [document.createTextNode(r[2])]),
+            deltaTd(r[3])
+          ]);
+        }))
+      ])
+    ]);
+    return section("Top paths (raw)", rkTable, {
+      id: "cmp-rankings",
+      className: "compare-section-panel",
+      lead: "Union of the top ~40 paths per side by raw ranking."
+    });
+  }
+
+  function buildCompareReport(data, root) {
+    var base = data.base;
+    var head = data.head;
+    var bRef = data.baseRef || "base";
+    var hRef = data.headRef || "head";
+    var sb = base.summary || {};
+    var sh = head.summary || {};
+    var mb = base.metadata || {};
+    var mh = head.metadata || {};
+
+    function branchPill(kind, label, value) {
+      var txt = String(value || "—");
+      return el("span", { className: "compare-branch-pill " + kind, title: label + ": " + txt }, [
+        el("span", { className: "compare-branch-pill-label", text: label + ":" }),
+        el("span", { className: "compare-branch-pill-value", text: txt })
+      ]);
+    }
+    var genIso = data.generatedAt || mb.generatedAt || mh.generatedAt;
+    var genAttrs = { className: "compare-generated-at", text: formatGeneratedAt(genIso) };
+    if (genIso) genAttrs.datetime = genIso;
+    var compareTopBar = el("div", { className: "compare-top-bar" }, [
+      el("div", { className: "compare-branch-bar" }, [
+        branchPill("base", "Base", bRef),
+        branchPill("head", "Head", hRef)
+      ]),
+      el("time", genAttrs, [])
+    ]);
+    root.appendChild(compareTopBar);
+    var rawDelta = fmtDeltaBytes(sb.totalRawBytes || 0, sh.totalRawBytes || 0);
+    var gzipDelta = fmtDeltaBytes(sb.totalGzipBytes || 0, sh.totalGzipBytes || 0);
+    var cards = [
+      statCard("Base files", String(sb.totalFiles || 0), "Indexed on base"),
+      statCard("Head files", String(sh.totalFiles || 0), "Indexed on head"),
+      statCard("Δ raw (head - base)", rawDelta.text, rawDelta.hint || null),
+      statCard("Δ gzip (head - base)", gzipDelta.text, gzipDelta.hint || null)
+    ];
+    var bb = base.build;
+    var hb = head.build;
+    if (bb && hb) {
+      var dMs = (hb.durationMs || 0) - (bb.durationMs || 0);
+      cards.push(
+        statCard(
+          "Δ build time",
+          (dMs >= 0 ? "+" : "−") + formatDurationMs(Math.abs(dMs)),
+          dMs > 0 ? "head slower build" : dMs < 0 ? "head faster build" : "same build duration"
+        )
+      );
+    }
+    root.appendChild(
+      section(
+        "Overview",
+        el("div", { className: "summary-layout" }, [
+          el("p", { className: "summary-lead", text: "Quick context to validate what was compared before reading detailed deltas." }),
+          el("div", { className: "summary-stats" }, cards)
+        ]),
+        {
+          id: "cmp-overview",
+          className: "summary-panel compare-section-panel",
+          lead: "Key deltas between the two indexed builds."
+        }
+      )
+    );
+
+    var resRows = [
+      [
+        "Indexed files",
+        String(sb.totalFiles || 0),
+        String(sh.totalFiles || 0),
+        fmtDeltaInt(sb.totalFiles || 0, sh.totalFiles || 0)
+      ],
+      [
+        "Total raw",
+        fmtBytes(sb.totalRawBytes || 0),
+        fmtBytes(sh.totalRawBytes || 0),
+        fmtDeltaBytes(sb.totalRawBytes || 0, sh.totalRawBytes || 0)
+      ],
+      [
+        "Total gzip",
+        fmtBytes(sb.totalGzipBytes || 0),
+        fmtBytes(sh.totalGzipBytes || 0),
+        fmtDeltaBytes(sb.totalGzipBytes || 0, sh.totalGzipBytes || 0)
+      ],
+      [
+        "Total brotli",
+        fmtBytes(sb.totalBrotliBytes || 0),
+        fmtBytes(sh.totalBrotliBytes || 0),
+        fmtDeltaBytes(sb.totalBrotliBytes || 0, sh.totalBrotliBytes || 0)
+      ]
+    ];
+    var byTypeBaseCount = (sb.byType || []).length;
+    var byTypeHeadCount = (sh.byType || []).length;
+    resRows.push([
+      "Detected file types",
+      String(byTypeBaseCount),
+      String(byTypeHeadCount),
+      fmtDeltaInt(byTypeBaseCount, byTypeHeadCount)
+    ]);
+    var tocLinks = [
+      ["cmp-overview", "Overview"],
+      ["cmp-resumen", "Summary"],
+      ["cmp-tipos", "By type"],
+      ["cmp-percentiles", "Percentiles"]
+    ];
+    var ab = base.audit;
+    var ah = head.audit;
+    if (ab || ah) tocLinks.push(["cmp-audit", "Vulnerabilities"]);
+    var ib = base.insights;
+    var ih = head.insights;
+    if (ib && ih) tocLinks.push(["cmp-insights", "Insights"]);
+    tocLinks.push(["cmp-rankings", "Top files"]);
+    root.appendChild(buildToc(tocLinks));
+
+    if (bb && hb) {
+      var dbS = (bb.durationMs || 0) / 1000;
+      var dhS = (hb.durationMs || 0) / 1000;
+      var dSec = dhS - dbS;
+      resRows.push([
+        "Build duration (s)",
+        dbS.toFixed(1),
+        dhS.toFixed(1),
+        {
+          text: (dSec >= 0 ? "+" : "") + dSec.toFixed(1) + " s",
+          cls: dSec > 0 ? "delta-pos" : dSec < 0 ? "delta-neg" : "delta-zero",
+          hint: ""
+        }
+      ]);
+    }
+    if (base.insights && head.insights) {
+      var smBase = base.insights.sourceMaps.percentOfTotalRawBytesInSourceMaps || 0;
+      var smHead = head.insights.sourceMaps.percentOfTotalRawBytesInSourceMaps || 0;
+      var smDelta = smHead - smBase;
+      resRows.push([
+        "Source maps % of raw",
+        smBase.toFixed(2) + "%",
+        smHead.toFixed(2) + "%",
+        {
+          text: (smDelta >= 0 ? "+" : "") + smDelta.toFixed(2) + " pp",
+          cls: smDelta > 0 ? "delta-pos" : smDelta < 0 ? "delta-neg" : "delta-zero",
+          hint: "percentage points"
+        }
+      ]);
+    }
+    if (ab || ah) {
+      var atBase = ab && ab.total != null ? ab.total : null;
+      var atHead = ah && ah.total != null ? ah.total : null;
+      var avDelta =
+        atBase != null && atHead != null
+          ? {
+              text: (atHead - atBase >= 0 ? "+" : "") + String(atHead - atBase),
+              cls: atHead - atBase > 0 ? "delta-pos" : atHead - atBase < 0 ? "delta-neg" : "delta-zero",
+              hint: atHead - atBase < 0 ? "fewer on head" : atHead - atBase > 0 ? "more on head" : ""
+            }
+          : { text: "—", cls: "delta-zero", hint: "" };
+      resRows.push([
+        "Vulnerabilities",
+        atBase == null ? "—" : String(atBase),
+        atHead == null ? "—" : String(atHead),
+        avDelta
+      ]);
+    }
+    if (base.insights && head.insights) {
+      var hbBase = base.insights.nameHash.withContentHashCount || 0;
+      var hbHead = head.insights.nameHash.withContentHashCount || 0;
+      resRows.push([
+        "Files with content hash",
+        String(hbBase),
+        String(hbHead),
+        fmtDeltaInt(hbBase, hbHead)
+      ]);
+    }
+    root.appendChild(section("Summary", cmpMetricTable(resRows), {
+      id: "cmp-resumen",
+      className: "compare-section-panel",
+      lead: "Executive comparison across size, composition, build, audit, and key derived indicators."
+    }));
+
+    var byB = {};
+    (sb.byType || []).forEach(function (r) { byB[r.type] = r; });
+    var byH = {};
+    (sh.byType || []).forEach(function (r) { byH[r.type] = r; });
+    var types = Object.keys(byB);
+    Object.keys(byH).forEach(function (k) { if (types.indexOf(k) === -1) types.push(k); });
+    types.sort();
+    var typeRows = types.map(function (t) {
+      var x = byB[t] || { count: 0, totalRawBytes: 0, totalGzipBytes: 0, totalBrotliBytes: 0 };
+      var y = byH[t] || { count: 0, totalRawBytes: 0, totalGzipBytes: 0, totalBrotliBytes: 0 };
+      return [
+        String(t),
+        String(x.count),
+        String(y.count),
+        fmtDeltaInt(x.count, y.count),
+        fmtBytes(x.totalRawBytes || 0),
+        fmtBytes(y.totalRawBytes || 0),
+        fmtDeltaBytes(x.totalRawBytes || 0, y.totalRawBytes || 0)
+      ];
+    });
+    var typeHead = ["Type", "N (base)", "N (head)", "ΔN", "Raw base", "Raw head", "Δ raw"];
+    var typeTable = el("div", { className: "compare-table-wrap" }, [
+      el("table", { className: "data-table compare-diff-table" }, [
+        el("thead", null, [
+          el("tr", null, typeHead.map(function (h) {
+            return el("th", { scope: "col" }, [document.createTextNode(h)]);
+          }))
+        ]),
+        el("tbody", null, typeRows.map(function (r) {
+          return el("tr", null, [
+            el("td", { className: "metric" }, [document.createTextNode(r[0])]),
+            el("td", { className: "num" }, [document.createTextNode(r[1])]),
+            el("td", { className: "num" }, [document.createTextNode(r[2])]),
+            deltaTd(r[3]),
+            el("td", { className: "num" }, [document.createTextNode(r[4])]),
+            el("td", { className: "num" }, [document.createTextNode(r[5])]),
+            deltaTd(r[6])
+          ]);
+        }))
+      ])
+    ]);
+    root.appendChild(section("By file type", typeTable, {
+      id: "cmp-tipos",
+      className: "compare-section-panel",
+      lead: "Counts and raw bytes per category."
+    }));
+
+    var pb = base.percentiles || {};
+    var ph = head.percentiles || {};
+    var pk = ["all", "javascript", "css", "image", "font", "sourcemap", "other"].filter(function (k) {
+      return pb[k] || ph[k];
+    });
+    var pcRows = pk.map(function (k) {
+      var a = pb[k] || {};
+      var c = ph[k] || {};
+      return [
+        distLabel(k),
+        fmtBytes(a.p50 || 0),
+        fmtBytes(c.p50 || 0),
+        fmtDeltaBytes(a.p50 || 0, c.p50 || 0),
+        fmtBytes(a.p90 || 0),
+        fmtBytes(c.p90 || 0),
+        fmtDeltaBytes(a.p90 || 0, c.p90 || 0),
+        fmtBytes(a.p99 || 0),
+        fmtBytes(c.p99 || 0),
+        fmtDeltaBytes(a.p99 || 0, c.p99 || 0)
+      ];
+    });
+    var pcHead = ["Group", "p50 B", "p50 H", "Δ", "p90 B", "p90 H", "Δ", "p99 B", "p99 H", "Δ"];
+    var pcTable = el("div", { className: "compare-table-wrap" }, [
+      el("table", { className: "data-table compare-diff-table" }, [
+        el("thead", null, [
+          el("tr", null, pcHead.map(function (h) {
+            return el("th", { scope: "col" }, [document.createTextNode(h)]);
+          }))
+        ]),
+        el("tbody", null, pcRows.map(function (r) {
+          return el("tr", null, [
+            el("td", { className: "metric" }, [document.createTextNode(r[0])]),
+            el("td", { className: "num" }, [document.createTextNode(r[1])]),
+            el("td", { className: "num" }, [document.createTextNode(r[2])]),
+            deltaTd(r[3]),
+            el("td", { className: "num" }, [document.createTextNode(r[4])]),
+            el("td", { className: "num" }, [document.createTextNode(r[5])]),
+            deltaTd(r[6]),
+            el("td", { className: "num" }, [document.createTextNode(r[7])]),
+            el("td", { className: "num" }, [document.createTextNode(r[8])]),
+            deltaTd(r[9])
+          ]);
+        }))
+      ])
+    ]);
+    root.appendChild(section("Percentiles (raw)", pcTable, {
+      id: "cmp-percentiles",
+      className: "compare-section-panel",
+      lead: "Percentiles by group: B = base, H = head."
+    }));
+
+    if (ab || ah) {
+      var auditWrap = el("div", { className: "compare-audit-wrap" }, []);
+      if (ab) auditWrap.appendChild(buildAuditCompareSide(ab, "Base (" + (bRef || "base") + ")"));
+      if (ah) auditWrap.appendChild(buildAuditCompareSide(ah, "Head (" + (hRef || "head") + ")"));
+      root.appendChild(section("Vulnerabilities", auditWrap, {
+        id: "cmp-audit",
+        className: "compare-section-panel",
+        lead: "Same layout as the single-report view per side: totals, severity counts, and direct vs transitive listings when CVE rows are present."
+      }));
+    }
+
+    if (ib && ih) {
+      var dSm =
+        ih.sourceMaps.percentOfTotalRawBytesInSourceMaps -
+        ib.sourceMaps.percentOfTotalRawBytesInSourceMaps;
+      var insRows = [
+        [
+          "Source maps % raw",
+          ib.sourceMaps.percentOfTotalRawBytesInSourceMaps.toFixed(2) + "%",
+          ih.sourceMaps.percentOfTotalRawBytesInSourceMaps.toFixed(2) + "%",
+          {
+            text: (dSm >= 0 ? "+" : "") + dSm.toFixed(2) + " pp",
+            cls: dSm > 0 ? "delta-pos" : dSm < 0 ? "delta-neg" : "delta-zero",
+            hint: "percentage points"
+          }
+        ],
+        (function () {
+          var dLc =
+            ih.concentration.largestFilePercentOfTotalRaw -
+            ib.concentration.largestFilePercentOfTotalRaw;
+          return [
+            "Largest file % of total",
+            ib.concentration.largestFilePercentOfTotalRaw.toFixed(1) + "%",
+            ih.concentration.largestFilePercentOfTotalRaw.toFixed(1) + "%",
+            {
+              text: (dLc >= 0 ? "+" : "") + dLc.toFixed(1) + " pp",
+              cls: dLc > 0 ? "delta-pos" : dLc < 0 ? "delta-neg" : "delta-zero",
+              hint: ""
+            }
+          ];
+        })(),
+        [
+          "Files with content hash in name",
+          String(ib.nameHash.withContentHashCount),
+          String(ih.nameHash.withContentHashCount),
+          fmtDeltaInt(ib.nameHash.withContentHashCount, ih.nameHash.withContentHashCount)
+        ]
+      ];
+      root.appendChild(section("Insights (excerpt)", cmpMetricTable(insRows), {
+        id: "cmp-insights",
+        className: "compare-section-panel",
+        lead: "Derived indicators; open each side's JSON for full detail."
+      }));
+    }
+    root.appendChild(buildTopPathsSection(base, head));
+  }
+
   var node = document.getElementById("bundlelens-report");
   if (!node) return;
   var report = JSON.parse(node.textContent || "{}");
@@ -734,6 +1224,11 @@ export const APP_JS = `
   var view =
     (document.documentElement && document.documentElement.getAttribute("data-bundlelens-view")) ||
     "index";
+
+  if (report._bundlelensCompare) {
+    buildCompareReport(report, root);
+    return;
+  }
 
   if (view === "files") {
     var onlyFiles = buildFullFilesSection(report);
@@ -903,7 +1398,7 @@ export const APP_JS = `
     }
     root.appendChild(section("Vulnerabilities", aw, {
       id: "vulnerabilidades",
-      lead: "Dependency risk summary from npm audit, when available."
+      lead: "Dependency risk summary from vulnerability scanning, when available."
     }));
   }
 

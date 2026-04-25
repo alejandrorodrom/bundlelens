@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import type { ResolvedConfig } from "../types/config.js";
 import type { BundleLensReport, FileEntry } from "../types/report.js";
-import { collectFiles } from "../collectors/fileCollector.js";
+import {
+  collectFiles,
+  type CollectFilesDiagnostics,
+  type CollectFilesProgress,
+} from "../collectors/fileCollector.js";
 import { collectNpmAudit } from "../collectors/auditCollector.js";
 import { buildSummary } from "../analyzers/sizeAnalyzer.js";
 import { buildDistributions } from "../analyzers/distributionAnalyzer.js";
@@ -21,6 +25,79 @@ export type AnalyzeOptions = {
   onStatus?: (message: string) => void;
 };
 
+function errnoFromUnknown(e: unknown): string {
+  if (e && typeof e === "object" && "code" in e) {
+    const c = (e as NodeJS.ErrnoException).code;
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return "";
+}
+
+/** Short hint for CLI / HTML notices. */
+function hintForBuildDirErrno(code: string): string {
+  switch (code) {
+    case "ENOENT":
+      return "Directory does not exist or `buildDir` is misspelled; confirm the real build output path.";
+    case "EACCES":
+    case "EPERM":
+      return "Permission denied: check owner/chmod. On macOS: System Settings → Privacy & Security → Full Disk Access for your terminal app (e.g. Cursor or Terminal).";
+    case "ENOTDIR":
+      return "A path segment is not a directory.";
+    case "ELOOP":
+      return "Too many symbolic links in the path.";
+    default:
+      return "";
+  }
+}
+
+function attachCollectFilesProgress(
+  onStatus: ((message: string) => void) | undefined
+): ((p: CollectFilesProgress) => void) | undefined {
+  if (!onStatus) return undefined;
+
+  let indexLastPct = -1;
+  let compressLastPct = -1;
+
+  return (p: CollectFilesProgress) => {
+    if (p.phase === "discover") {
+      if (p.stage === "listing") {
+        onStatus("Listing build output files…");
+      } else {
+        const n = p.pathCount;
+        onStatus(
+          n === 0
+            ? "Found 0 files in build output."
+            : n === 1
+              ? "Found 1 file in build output."
+              : `Found ${n} files in build output.`
+        );
+      }
+      indexLastPct = -1;
+      compressLastPct = -1;
+      return;
+    }
+
+    if (p.phase === "index") {
+      if (p.total <= 0) return;
+      const pct = Math.min(100, Math.round((p.current / p.total) * 100));
+      const done = p.current >= p.total;
+      if (!done && pct === indexLastPct) return;
+      indexLastPct = pct;
+      onStatus(`Indexing files… ${pct}% (${p.current}/${p.total})`);
+      return;
+    }
+
+    if (p.phase === "compress") {
+      if (p.total <= 0) return;
+      const pct = Math.min(100, Math.round((p.current / p.total) * 100));
+      const done = p.current >= p.total;
+      if (!done && pct === compressLastPct) return;
+      compressLastPct = pct;
+      onStatus(`Measuring gzip/brotli… ${pct}% (${p.current}/${p.total})`);
+    }
+  };
+}
+
 export async function analyzeBuildDir(
   options: AnalyzeOptions
 ): Promise<BundleLensReport> {
@@ -30,12 +107,75 @@ export async function analyzeBuildDir(
   const analysisStartedAt = Date.now();
 
   let files: FileEntry[] = [];
+  let diagnostics: CollectFilesDiagnostics = {
+    discoveredFiles: 0,
+    indexedFiles: 0,
+    skippedReadFiles: 0,
+    compressionReadErrors: 0,
+    skippedReadSamples: [],
+    compressionReadSamples: [],
+  };
+  const analysisNotices: string[] = [];
   onStatus?.("Checking build output directory…");
   try {
     await fs.access(buildDirAbs);
-    onStatus?.("Indexing files and measuring gzip/brotli…");
-    files = await collectFiles(buildDirAbs, config.compression);
-  } catch {
+    const result = await collectFiles(
+      buildDirAbs,
+      config.compression,
+      attachCollectFilesProgress(onStatus)
+    );
+    files = result.entries;
+    diagnostics = result.diagnostics;
+    const hasReadIssues =
+      diagnostics.skippedReadFiles > 0 || diagnostics.compressionReadErrors > 0;
+    if (hasReadIssues) {
+      analysisNotices.push(
+        `Scan stats: discovered=${diagnostics.discoveredFiles}, indexed=${diagnostics.indexedFiles}, skippedRead=${diagnostics.skippedReadFiles}, compressionReReadErrors=${diagnostics.compressionReadErrors}`
+      );
+    }
+
+    if (diagnostics.skippedReadFiles > 0) {
+      analysisNotices.push(
+        `${diagnostics.skippedReadFiles} file(s) skipped during indexing due to read/access errors.`
+      );
+      if (diagnostics.skippedReadSamples.length > 0) {
+        const parts = diagnostics.skippedReadSamples
+          .map((s) => `${s.path} [${s.code}]`)
+          .join("; ");
+        analysisNotices.push(`Read error sample (max 5): ${parts}`);
+      }
+      const perm = diagnostics.skippedReadSamples.some(
+        (s) => s.code === "EACCES" || s.code === "EPERM"
+      );
+      if (perm) {
+        analysisNotices.push(
+          "Some reads failed with EACCES/EPERM: check file permissions or Full Disk Access for your terminal app on macOS."
+        );
+      }
+    }
+    if (diagnostics.compressionReadErrors > 0) {
+      analysisNotices.push(
+        `${diagnostics.compressionReadErrors} file(s) could not be re-read for gzip/brotli (raw sizes from indexing are still available).`
+      );
+      if (diagnostics.compressionReadSamples.length > 0) {
+        const parts = diagnostics.compressionReadSamples
+          .map((s) => `${s.path} [${s.code}]`)
+          .join("; ");
+        analysisNotices.push(`Compression re-read error sample (max 5): ${parts}`);
+      }
+    }
+
+    if (files.length === 0) {
+      analysisNotices.push(
+        `No files indexed under: ${buildDirAbs} (empty directory or all reads failed).`
+      );
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const code = errnoFromUnknown(e);
+    const hint = hintForBuildDirErrno(code);
+    const warnMsg = `Could not access build directory "${buildDirAbs}": ${msg}${hint ? ` — ${hint}` : ""}`;
+    analysisNotices.push(warnMsg);
     files = [];
   }
   onStatus?.("Computing summaries, rankings, and percentiles…");
@@ -68,6 +208,7 @@ export async function analyzeBuildDir(
       buildDir: buildDirAbs,
       outputDir: outputDirAbs,
       analysisDurationMs,
+      analysisNotices: analysisNotices.length > 0 ? analysisNotices : undefined,
     },
     build,
     files,

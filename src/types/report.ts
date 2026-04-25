@@ -134,6 +134,8 @@ export type ReportMetadata = {
   outputDir: string;
   /** Wall time spent inside BundleLens for this report (excludes child build when using `run`). */
   analysisDurationMs: number;
+  /** Non-fatal diagnostics from scan/analysis. */
+  analysisNotices?: string[];
 };
 
 export type SourceMapFootprint = {
@@ -207,4 +209,15 @@ export type BundleLensReport = {
   audit: AuditReport | null;
   thresholds: ThresholdResult[] | null;
   insights: BundleInsights;
+};
+
+/** Carga única embebida en `compare.html` / `compare-report.json`. */
+export type BundleLensCompareReport = {
+  _bundlelensCompare: true;
+  bundlelensVersion: string;
+  generatedAt: string;
+  baseRef: string;
+  headRef: string;
+  base: BundleLensReport;
+  head: BundleLensReport;
 };

@@ -46,14 +46,14 @@ async function readJsonConfig(filePath: string): Promise<BundleLensConfig> {
 function resolveBuildDirAbs(
   cwd: string,
   configPath: string | undefined,
-  override: string | undefined,
-  fromFile: string | undefined
+  primary: string | undefined,
+  fallback: string | undefined
 ): string | undefined {
-  const trimmedOverride = override?.trim();
-  if (trimmedOverride) {
-    return path.resolve(cwd, trimmedOverride);
+  const trimmedPrimary = primary?.trim();
+  if (trimmedPrimary) {
+    return path.resolve(cwd, trimmedPrimary);
   }
-  const trimmedFile = fromFile?.trim();
+  const trimmedFile = fallback?.trim();
   if (!trimmedFile) {
     return undefined;
   }
@@ -87,19 +87,19 @@ export async function resolveConfig(
   }
 
   let audit: boolean;
-  if (overrides.audit !== undefined) {
-    audit = overrides.audit;
-  } else if (fileConfig.audit !== undefined) {
+  if (fileConfig.audit !== undefined) {
     audit = Boolean(fileConfig.audit);
+  } else if (overrides.audit !== undefined) {
+    audit = overrides.audit;
   } else {
     audit = true;
   }
 
   let failOnBuild: boolean;
-  if (overrides.failOnBuild !== undefined) {
-    failOnBuild = overrides.failOnBuild;
-  } else if (fileConfig.failOnBuild !== undefined) {
+  if (fileConfig.failOnBuild !== undefined) {
     failOnBuild = Boolean(fileConfig.failOnBuild);
+  } else if (overrides.failOnBuild !== undefined) {
+    failOnBuild = overrides.failOnBuild;
   } else {
     failOnBuild = false;
   }
@@ -121,18 +121,18 @@ export async function resolveConfig(
   };
 
   const outputRel =
-    overrides.outputDir ?? fileConfig.outputDir ?? "bundlelens";
+    fileConfig.outputDir ?? overrides.outputDir ?? "bundlelens";
 
   const buildDirAbs = resolveBuildDirAbs(
     cwd,
     configPath,
-    overrides.buildDir,
-    fileConfig.buildDir
+    fileConfig.buildDir,
+    overrides.buildDir
   );
 
   return {
     buildCommand:
-      overrides.buildCommand ?? fileConfig.buildCommand ?? undefined,
+      fileConfig.buildCommand ?? overrides.buildCommand ?? undefined,
     buildDir: buildDirAbs,
     outputDir: path.resolve(cwd, outputRel),
     audit,
@@ -140,5 +140,7 @@ export async function resolveConfig(
     compression,
     thresholds,
     configPath,
+    compare: fileConfig.compare,
+    install: fileConfig.install,
   };
 }

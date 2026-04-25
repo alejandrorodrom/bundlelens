@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bundlelens.schema.json",
+  "title": "BundleLens Config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URI for editor autocomplete/validation."
+    },
+    "buildCommand": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Build command to run in `bundlelens run` (e.g. `npm run build`)."
+    },
+    "buildDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Build output directory to analyze. Relative paths are resolved from this config file."
+    },
+    "outputDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Directory where BundleLens writes reports."
+    },
+    "audit": {
+      "type": "boolean",
+      "description": "Enable npm audit during analysis."
+    },
+    "failOnBuild": {
+      "type": "boolean",
+      "description": "If true, exits with the build command non-zero code."
+    },
+    "compression": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gzip": {
+          "type": "boolean"
+        },
+        "brotli": {
+          "type": "boolean"
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "categories": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "javascript": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "css": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "image": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "font": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "sourcemap": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "html": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "json": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "wasm": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "media": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            },
+            "other": {
+              "$ref": "#/$defs/thresholdCategoryConfig"
+            }
+          }
+        }
+      }
+    },
+    "compare": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "baseBranch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "headBranch": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Dependency install behavior used by run/compare when node_modules is missing.",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Install command to run when dependencies are missing (e.g. npm ci, pnpm install --frozen-lockfile). If omitted, BundleLens asks interactively."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "thresholdCategoryConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxFileRawBytes": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxFileGzipBytes": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxTotalRawBytes": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxTotalGzipBytes": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

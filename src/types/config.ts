@@ -27,20 +27,44 @@ export type CompressionConfig = {
   brotli: boolean;
 };
 
+export type CompareConfig = {
+  /** Git branch or ref for the diff base side (e.g. `main`). */
+  baseBranch?: string;
+  /** Git branch or ref for the head side (e.g. your feature branch). */
+  headBranch?: string;
+};
+
+export type InstallConfig = {
+  /**
+   * Preferred install command when dependencies are missing.
+   * If unset, the CLI asks interactively.
+   */
+  command?: string;
+};
+
 export type BundleLensConfig = {
+  /** Optional JSON schema URI for editor autocomplete/validation. */
+  $schema?: string;
   buildCommand?: string;
-  /** Carpeta de salida del build a inspeccionar. Ruta relativa: respecto a este archivo de configuración. */
+  /** Build output directory to inspect. Relative paths are resolved from this config file. */
   buildDir?: string;
   outputDir?: string;
-  /** Por defecto se ejecuta `npm audit`. Pon `false` para omitirlo sin usar la CLI. `--no-audit` en la CLI tiene prioridad. */
+  /** When true, runs `npm audit`. Set `false` to skip without CLI flags. CLI `--no-audit` / `--audit` override this. */
   audit?: boolean;
   /**
-   * Si es true, el proceso termina con el código de salida del comando de build cuando no es 0.
-   * Por defecto false: si el análisis y el informe terminan bien, el exit code es 0 aunque el build devolviera error.
+   * When true, exit with the build command's non-zero exit code.
+   * Default false: if analysis and report succeed, exit code is 0 even when the build failed.
    */
   failOnBuild?: boolean;
   compression?: Partial<CompressionConfig>;
   thresholds?: Partial<ThresholdsConfig>;
+  /**
+   * Defaults for `bundlelens compare` when `--base` / `--head` are omitted.
+   * CLI flags override these fields.
+   */
+  compare?: CompareConfig;
+  /** Dependency installation behavior used by `run` and `compare`. */
+  install?: InstallConfig;
 };
 
 export type ResolvedCompression = CompressionConfig;
@@ -49,7 +73,7 @@ export type ResolvedThresholds = ThresholdsConfig;
 
 export type ResolvedConfig = {
   buildCommand: string | undefined;
-  /** Directorio de artefactos a analizar; ruta absoluta si está definido. */
+  /** Artifact directory to analyze; absolute path when set. */
   buildDir: string | undefined;
   outputDir: string;
   audit: boolean;
@@ -57,4 +81,6 @@ export type ResolvedConfig = {
   compression: ResolvedCompression;
   thresholds: ResolvedThresholds;
   configPath: string | undefined;
+  compare?: CompareConfig;
+  install?: InstallConfig;
 };

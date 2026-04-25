@@ -842,6 +842,160 @@ section.summary-panel .section-head {
   color: var(--text);
 }
 
+/* —— Compare view (bundlelens compare) —— */
+html[data-bundlelens-view="compare"] .bl-sub {
+  max-width: 52rem;
+}
+.compare-top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1.25rem;
+  margin: 0.75rem 0 1.15rem;
+}
+.compare-branch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+.compare-generated-at {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.compare-branch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #151b26;
+  max-width: min(100%, 42rem);
+}
+.compare-branch-pill-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.compare-branch-pill-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compare-branch-pill.base {
+  border-color: #3d5a80;
+  background: #152032;
+}
+.compare-branch-pill.head {
+  border-color: #2f6b4a;
+  background: #152818;
+}
+.compare-indicator-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1rem 0 0.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 0.35rem 0;
+  background: linear-gradient(180deg, var(--bg) 70%, transparent);
+}
+.compare-indicator-nav button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: #1a2230;
+  color: var(--text);
+  cursor: pointer;
+}
+.compare-indicator-nav button:hover {
+  border-color: var(--accent);
+}
+.compare-indicator-nav button.active {
+  border-color: var(--accent);
+  background: #1e2d45;
+  color: #fff;
+}
+.compare-section-panel {
+  scroll-margin-top: 4.5rem;
+}
+.compare-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.35rem;
+}
+table.compare-diff-table {
+  width: 100%;
+  min-width: 28rem;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.compare-diff-table th,
+.compare-diff-table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.compare-diff-table th {
+  background: #151b26;
+  font-weight: 600;
+}
+.compare-diff-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.compare-diff-table .metric {
+  font-weight: 500;
+  max-width: 14rem;
+}
+.delta-pos {
+  color: #f87171;
+}
+.delta-neg {
+  color: #4ade80;
+}
+.delta-zero {
+  color: var(--muted);
+}
+.delta-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  display: block;
+  margin-top: 0.15rem;
+}
+.delta-symbol {
+  font-weight: 700;
+}
+.compare-audit-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.compare-audit-side {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem 0.85rem;
+  background: var(--panel-elevated);
+}
+.compare-audit-side-title {
+  margin-top: 0;
+}
+.compare-audit-side-body .kv-grid {
+  margin-bottom: 0.35rem;
+}
+
+
 @page {
   margin: 0;
   size: auto;
