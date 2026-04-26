@@ -71,42 +71,58 @@ function attachCollectFilesProgress(
   let indexLastPct = -1;
   let compressLastPct = -1;
 
+  const pctFromProgress = (current: number, total: number): number =>
+    Math.min(100, Math.round((current / total) * 100));
+
+  const notifyProgress = (
+    label: string,
+    current: number,
+    total: number,
+    lastPct: number
+  ): number => {
+    if (total <= 0) return lastPct;
+    const pct = pctFromProgress(current, total);
+    const done = current >= total;
+    if (!done && pct === lastPct) return lastPct;
+    onStatus(`${label} ${pct}% (${current}/${total})`);
+    return pct;
+  };
+
   return (p: CollectFilesProgress) => {
-    if (p.phase === "discover") {
-      if (p.stage === "listing") {
-        onStatus("Listing build output files…");
-      } else {
-        const n = p.pathCount;
-        onStatus(
-          n === 0
-            ? "Found 0 files in build output."
-            : n === 1
-              ? "Found 1 file in build output."
-              : `Found ${n} files in build output.`
-        );
+    switch (p.phase) {
+      case "discover": {
+        if (p.stage === "listing") {
+          onStatus("Listing build output files…");
+        } else {
+          const n = p.pathCount;
+          onStatus(
+            n === 0
+              ? "Found 0 files in build output."
+              : n === 1
+                ? "Found 1 file in build output."
+                : `Found ${n} files in build output.`
+          );
+        }
+        indexLastPct = -1;
+        compressLastPct = -1;
+        return;
       }
-      indexLastPct = -1;
-      compressLastPct = -1;
-      return;
-    }
-
-    if (p.phase === "index") {
-      if (p.total <= 0) return;
-      const pct = Math.min(100, Math.round((p.current / p.total) * 100));
-      const done = p.current >= p.total;
-      if (!done && pct === indexLastPct) return;
-      indexLastPct = pct;
-      onStatus(`Indexing files… ${pct}% (${p.current}/${p.total})`);
-      return;
-    }
-
-    if (p.phase === "compress") {
-      if (p.total <= 0) return;
-      const pct = Math.min(100, Math.round((p.current / p.total) * 100));
-      const done = p.current >= p.total;
-      if (!done && pct === compressLastPct) return;
-      compressLastPct = pct;
-      onStatus(`Measuring gzip/brotli… ${pct}% (${p.current}/${p.total})`);
+      case "index":
+        indexLastPct = notifyProgress(
+          "Indexing files…",
+          p.current,
+          p.total,
+          indexLastPct
+        );
+        return;
+      case "compress":
+        compressLastPct = notifyProgress(
+          "Measuring gzip/brotli…",
+          p.current,
+          p.total,
+          compressLastPct
+        );
+        return;
     }
   };
 }

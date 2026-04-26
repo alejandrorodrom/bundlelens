@@ -241,6 +241,28 @@ async function runOneSide(options: {
   resolvedBuildDirAbs: string;
   resolvedInstallCommand?: string;
 }> {
+  const promptRequiredValue = async (args: {
+    message: string;
+    requiredMessage: string;
+    validationMessage: string;
+  }): Promise<string> => {
+    if (!isInteractiveTerminal()) {
+      throw new Error(args.requiredMessage);
+    }
+    promptHooks?.pause();
+    try {
+      return (
+        await input({
+          message: args.message,
+          validate: (v) =>
+            v.trim().length > 0 ? true : args.validationMessage,
+        })
+      ).trim();
+    } finally {
+      promptHooks?.resume();
+    }
+  };
+
   const {
     worktreeCwd,
     checkoutRoot,
@@ -278,45 +300,22 @@ async function runOneSide(options: {
 
   let cmd = sideConfig.buildCommand?.trim() || sharedBuildCommand?.trim();
   if (!cmd) {
-    if (!isInteractiveTerminal()) {
-      throw new Error(
-        `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`
-      );
-    }
-    promptHooks?.pause();
-    try {
-      cmd = (
-        await input({
-          message: `${options.label}: build command not found in config. Enter command (e.g. npm run build)`,
-          validate: (v) => (v.trim().length > 0 ? true : "Build command is required."),
-        })
-      ).trim();
-    } finally {
-      promptHooks?.resume();
-    }
+    cmd = await promptRequiredValue({
+      message: `${options.label}: build command not found in config. Enter command (e.g. npm run build)`,
+      requiredMessage: `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`,
+      validationMessage: "Build command is required.",
+    });
   }
   let buildDirAbs = sideConfig.buildDir;
   if (!buildDirAbs && sharedBuildDir?.trim()) {
     buildDirAbs = resolvePathInCwd(sharedBuildDir, worktreeCwd);
   }
   if (!buildDirAbs) {
-    if (!isInteractiveTerminal()) {
-      throw new Error(
-        `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`
-      );
-    }
-    promptHooks?.pause();
-    let rawBuildDir: string;
-    try {
-      rawBuildDir = (
-        await input({
-          message: `${options.label}: buildDir not found in config. Enter build output directory (e.g. dist, .next, out)`,
-          validate: (v) => (v.trim().length > 0 ? true : "buildDir is required."),
-        })
-      ).trim();
-    } finally {
-      promptHooks?.resume();
-    }
+    const rawBuildDir = await promptRequiredValue({
+      message: `${options.label}: buildDir not found in config. Enter build output directory (e.g. dist, .next, out)`,
+      requiredMessage: `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`,
+      validationMessage: "buildDir is required.",
+    });
     buildDirAbs = resolvePathInCwd(rawBuildDir, worktreeCwd);
   }
 

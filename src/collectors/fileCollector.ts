@@ -167,32 +167,41 @@ export async function collectFiles(
   const entries: FileEntry[] = [];
   const needCompress = Boolean(compression.gzip || compression.brotli);
   const total = paths.length;
+  const emitProgress = (current: number): void => {
+    onProgress?.({ phase: "index", current, total });
+    if (needCompress) onProgress?.({ phase: "compress", current, total });
+  };
+
   for (let i = 0; i < paths.length; i++) {
     const abs = paths[i]!;
     const row = await indexOneFile(buildDirAbs, abs, compression);
-    if (row && "failed" in row) {
+    if (!row) {
+      emitProgress(i + 1);
+      continue;
+    }
+
+    if ("failed" in row) {
       skippedReadFiles += 1;
       if (skippedReadSamples.length < 5) {
         skippedReadSamples.push({ path: row.rel, code: row.code });
       }
-    } else if (row) {
-      entries.push({
-        path: row.path,
-        extension: row.extension,
-        type: row.type,
-        rawBytes: row.rawBytes,
-        gzipBytes: row.gzipBytes,
-        brotliBytes: row.brotliBytes,
-        nameHash: row.nameHash,
-        isSourceMap: row.isSourceMap,
-        relatedSourceMap: row.relatedSourceMap,
-        relatedFile: row.relatedFile,
-      });
+      emitProgress(i + 1);
+      continue;
     }
-    onProgress?.({ phase: "index", current: i + 1, total });
-    if (needCompress) {
-      onProgress?.({ phase: "compress", current: i + 1, total });
-    }
+
+    entries.push({
+      path: row.path,
+      extension: row.extension,
+      type: row.type,
+      rawBytes: row.rawBytes,
+      gzipBytes: row.gzipBytes,
+      brotliBytes: row.brotliBytes,
+      nameHash: row.nameHash,
+      isSourceMap: row.isSourceMap,
+      relatedSourceMap: row.relatedSourceMap,
+      relatedFile: row.relatedFile,
+    });
+    emitProgress(i + 1);
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));

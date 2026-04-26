@@ -111,23 +111,18 @@ export async function resolveConfig(
     fileConfig = await readJsonConfig(configPath);
   }
 
-  let audit: boolean;
-  if (fileConfig.audit !== undefined) {
-    audit = Boolean(fileConfig.audit);
-  } else if (overrides.audit !== undefined) {
-    audit = overrides.audit;
-  } else {
-    audit = true;
-  }
-
-  let failOnBuild: boolean;
-  if (fileConfig.failOnBuild !== undefined) {
-    failOnBuild = Boolean(fileConfig.failOnBuild);
-  } else if (overrides.failOnBuild !== undefined) {
-    failOnBuild = overrides.failOnBuild;
-  } else {
-    failOnBuild = false;
-  }
+  const audit =
+    fileConfig.audit !== undefined
+      ? Boolean(fileConfig.audit)
+      : overrides.audit !== undefined
+        ? overrides.audit
+        : true;
+  const failOnBuild =
+    fileConfig.failOnBuild !== undefined
+      ? Boolean(fileConfig.failOnBuild)
+      : overrides.failOnBuild !== undefined
+        ? overrides.failOnBuild
+        : false;
 
   const compression = {
     gzip:
