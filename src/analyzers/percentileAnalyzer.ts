@@ -1,10 +1,8 @@
-import type {
-  Distributions,
-  FileEntry,
-  PercentileSet,
-  Percentiles,
-} from "../types/report.js";
-import { filesInDistributionSlice } from "./distributionAnalyzer.js";
+import type { FileEntry, PercentileSet, Percentiles } from "../types/report.js";
+import {
+  DISTRIBUTION_SLICE_KEYS,
+  filesInDistributionSlice,
+} from "./distributionAnalyzer.js";
 
 /**
  * Nearest-rank percentile on a pre-sorted ascending array.
@@ -54,17 +52,8 @@ function rawBytesList(files: FileEntry[]): number[] {
  * @returns Percentile sets keyed like `Distributions`.
  */
 export function buildPercentiles(files: FileEntry[]): Percentiles {
-  const keys: (keyof Distributions)[] = [
-    "all",
-    "javascript",
-    "css",
-    "image",
-    "font",
-    "sourcemap",
-    "other",
-  ];
   const out = {} as Percentiles;
-  for (const k of keys) {
+  for (const k of DISTRIBUTION_SLICE_KEYS) {
     const slice = filesInDistributionSlice(files, k);
     out[k] = buildSet(rawBytesList(slice));
   }

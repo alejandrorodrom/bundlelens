@@ -18,6 +18,8 @@ import {
 import { createSpinner } from "../utils/spinner.js";
 import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
+import { resolvePathInCwd } from "../utils/pathResolve.js";
+import { printAnalyzerNotices } from "./shared.js";
 
 /** Options for `runCompare` (project cwd, argv, and optional CLI overrides). */
 export type CompareCliOptions = {
@@ -45,22 +47,6 @@ type ComparePromptHooks = {
 function printCheckLine(message: string): void {
   const ok = process.stdout.isTTY ? "\x1b[32m✔\x1b[0m" : "✔";
   process.stdout.write(`${ok} ${message}\n`);
-}
-
-/**
- * Prints analyzer notices for one compare side to stderr.
- *
- * @param label - Side label (e.g. `base (main)`).
- * @param notices - Optional notice list; empty/undefined skips output.
- */
-function printSideNotices(label: string, notices: string[] | undefined): void {
-  if (!notices || notices.length === 0) return;
-  const warningIcon = process.stderr.isTTY ? "\x1b[33m⚠\x1b[0m" : "⚠";
-  console.warn("");
-  console.warn(`${warningIcon} ${label} analyzer notices`);
-  for (const n of notices) {
-    console.warn(`  - ${n}`);
-  }
 }
 
 /**
@@ -101,18 +87,6 @@ function buildDirHintRelativeToCheckout(
     return rel.length === 0 ? "." : rel;
   }
   return abs;
-}
-
-/**
- * @param raw - Absolute or relative path string (trimmed).
- * @param cwd - Base for relative resolution.
- * @returns Normalized absolute path.
- */
-function resolvePathInCwd(raw: string, cwd: string): string {
-  const trimmed = raw.trim();
-  return path.isAbsolute(trimmed)
-    ? path.normalize(trimmed)
-    : path.resolve(cwd, trimmed);
 }
 
 /**
@@ -397,7 +371,7 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
     configHead: config.compare?.headBranch,
   });
   const outputDirAbs = options.outputFlag
-    ? path.resolve(cwd, options.outputFlag.trim())
+    ? resolvePathInCwd(options.outputFlag, cwd)
     : path.join(config.outputDir, "compare");
 
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "bundlelens-cmp-"));
@@ -494,8 +468,14 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
     spin.stop();
     printCheckLine(`Head analyzed (${head})`);
 
-    printSideNotices(`base (${base})`, baseReport.metadata.analysisNotices);
-    printSideNotices(`head (${head})`, headReport.metadata.analysisNotices);
+    printAnalyzerNotices(baseReport.metadata.analysisNotices, {
+      headingAfterIcon: `base (${base}) analyzer notices`,
+      trailingBlankLine: false,
+    });
+    printAnalyzerNotices(headReport.metadata.analysisNotices, {
+      headingAfterIcon: `head (${head}) analyzer notices`,
+      trailingBlankLine: false,
+    });
     if (
       (baseReport.summary?.totalFiles ?? 0) === 0 &&
       (headReport.summary?.totalFiles ?? 0) === 0

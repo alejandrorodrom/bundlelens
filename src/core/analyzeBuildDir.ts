@@ -14,6 +14,7 @@ import { evaluateThresholds } from "../analyzers/thresholdAnalyzer.js";
 import { buildRankings } from "./rankings.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { buildInsights } from "../analyzers/insightsAnalyzer.js";
+import { nodeErrnoCode } from "../utils/nodeErrno.js";
 
 /** Inputs for scanning a build output directory and assembling a `BundleLensReport`. */
 export type AnalyzeOptions = {
@@ -24,18 +25,6 @@ export type AnalyzeOptions = {
   build: BundleLensReport["build"];
   onStatus?: (message: string) => void;
 };
-
-/**
- * @param e - Any thrown or caught value.
- * @returns Node `errno` string when present, else empty string.
- */
-function errnoFromUnknown(e: unknown): string {
-  if (e && typeof e === "object" && "code" in e) {
-    const c = (e as NodeJS.ErrnoException).code;
-    if (typeof c === "string" && c.length > 0) return c;
-  }
-  return "";
-}
 
 /**
  * @param code - Filesystem errno (e.g. `ENOENT`).
@@ -207,7 +196,7 @@ export async function analyzeBuildDir(
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const code = errnoFromUnknown(e);
+    const code = nodeErrnoCode(e) ?? "";
     const hint = hintForBuildDirErrno(code);
     const warnMsg = `Could not access build directory "${buildDirAbs}": ${msg}${hint ? ` — ${hint}` : ""}`;
     analysisNotices.push(warnMsg);

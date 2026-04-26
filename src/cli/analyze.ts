@@ -1,6 +1,6 @@
-import path from "node:path";
 import process from "node:process";
 import { auditFromArgv } from "../utils/cliArgv.js";
+import { resolvePathInCwd } from "../utils/pathResolve.js";
 import { resolveConfig } from "../utils/config.js";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { generateReport } from "../core/generateReport.js";
@@ -41,7 +41,7 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
           "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
         validateMessage: "buildDir is required.",
       });
-      buildDirAbs = path.resolve(cwd, raw);
+      buildDirAbs = resolvePathInCwd(raw, cwd);
     } catch {
       console.error(
         "Missing build directory: use analyze <dir>, --build-dir, set buildDir in bundlelens.config.json, or run in an interactive terminal."

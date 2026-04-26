@@ -1,4 +1,8 @@
 /** Client-side script for rendering report JSON into the static HTML shells. */
+import { DISTRIBUTION_SLICE_KEYS } from "../../analyzers/distributionAnalyzer.js";
+
+const DISTRIBUTION_KEYS_JSON = JSON.stringify([...DISTRIBUTION_SLICE_KEYS]);
+
 export const APP_JS = `
 (function () {
   (function setupPdfButton() {
@@ -1135,7 +1139,7 @@ export const APP_JS = `
 
     var pb = base.percentiles || {};
     var ph = head.percentiles || {};
-    var pk = ["all", "javascript", "css", "image", "font", "sourcemap", "other"].filter(function (k) {
+    var pk = ${DISTRIBUTION_KEYS_JSON}.filter(function (k) {
       return pb[k] || ph[k];
     });
     var pcRows = pk.map(function (k) {

@@ -9,6 +9,7 @@ import {
   detectNameHash,
   relatedPathsForFile,
 } from "../utils/fileTypes.js";
+import { nodeErrnoCode } from "../utils/nodeErrno.js";
 
 /** Progress events while discovering, indexing, and measuring files. */
 export type CollectFilesProgress =
@@ -26,20 +27,6 @@ export type CollectFilesDiagnostics = {
   skippedReadSamples: Array<{ path: string; code: string }>;
   compressionReadSamples: Array<{ path: string; code: string }>;
 };
-
-/**
- * @param err - Any error from `fs` operations.
- * @returns `err.code` when a string, otherwise `"UNKNOWN"`.
- */
-function errnoCode(err: unknown): string {
-  if (err && typeof err === "object" && "code" in err) {
-    const c = (err as NodeJS.ErrnoException).code;
-    if (typeof c === "string" && c.length > 0) {
-      return c;
-    }
-  }
-  return "UNKNOWN";
-}
 
 type StagedFile = {
   path: string;
@@ -78,7 +65,7 @@ async function indexOneFile(
   try {
     buf = await fs.readFile(abs);
   } catch (e) {
-    return { failed: true, rel, code: errnoCode(e) };
+    return { failed: true, rel, code: nodeErrnoCode(e) ?? "UNKNOWN" };
   }
   const rawBytes = buf.length;
   const needCompress = Boolean(compression.gzip || compression.brotli);

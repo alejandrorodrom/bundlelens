@@ -7,6 +7,17 @@ import type {
 } from "../types/report.js";
 import { bucketForRawBytes } from "../utils/bytes.js";
 
+/** Stable iteration order for `Distributions` / `Percentiles` slice keys. */
+export const DISTRIBUTION_SLICE_KEYS: (keyof Distributions)[] = [
+  "all",
+  "javascript",
+  "css",
+  "image",
+  "font",
+  "sourcemap",
+  "other",
+];
+
 const BUCKETS: SizeBucket[] = [
   "0-10kb",
   "10-50kb",

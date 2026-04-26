@@ -1,6 +1,6 @@
-import path from "node:path";
 import process from "node:process";
 import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
+import { resolvePathInCwd } from "../utils/pathResolve.js";
 import { resolveConfig } from "../utils/config.js";
 import { runBuild } from "../core/runBuild.js";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
@@ -59,7 +59,7 @@ export async function runRun(options: RunCliOptions): Promise<void> {
           "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
         validateMessage: "buildDir is required.",
       });
-      buildDirAbs = path.resolve(cwd, raw);
+      buildDirAbs = resolvePathInCwd(raw, cwd);
     } catch {
       console.error(
         "Missing build directory: set buildDir in bundlelens.config.json, pass --build-dir, or run in an interactive terminal."
