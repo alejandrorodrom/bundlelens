@@ -4,9 +4,14 @@
   "description": "Herramienta agnóstica para medir y visualizar datos objetivos de builds JavaScript/TypeScript",
   "type": "module",
   "bin": {
-    "bundlelens": "./dist/cli/index.js"
+    "bundlelens": "dist/cli/index.js"
   },
   "main": "./dist/cli/index.js",
+  "types": "./dist/cli/index.d.ts",
+  "exports": {
+    ".": "./dist/cli/index.js",
+    "./package.json": "./package.json"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alejandrorodrom/bundlelens.git"
@@ -18,12 +23,17 @@
   "files": [
     "dist",
     "bundlelens.schema.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=18"
