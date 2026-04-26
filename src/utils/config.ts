@@ -13,6 +13,16 @@ const DEFAULT_CONFIG_NAMES = [BUNDLELENS_CONFIG_FILENAME];
 
 const defaultCompression = { gzip: true, brotli: true };
 
+function boolFromFileOrOverride(
+  file: boolean | undefined,
+  override: boolean | undefined,
+  fallback: boolean
+): boolean {
+  if (file !== undefined) return Boolean(file);
+  if (override !== undefined) return Boolean(override);
+  return fallback;
+}
+
 /**
  * Resolves an explicit path or discovers `bundlelens.config.json` under `cwd`.
  *
@@ -111,18 +121,16 @@ export async function resolveConfig(
     fileConfig = await readJsonConfig(configPath);
   }
 
-  const audit =
-    fileConfig.audit !== undefined
-      ? Boolean(fileConfig.audit)
-      : overrides.audit !== undefined
-        ? overrides.audit
-        : true;
-  const failOnBuild =
-    fileConfig.failOnBuild !== undefined
-      ? Boolean(fileConfig.failOnBuild)
-      : overrides.failOnBuild !== undefined
-        ? overrides.failOnBuild
-        : false;
+  const audit = boolFromFileOrOverride(
+    fileConfig.audit,
+    overrides.audit,
+    true
+  );
+  const failOnBuild = boolFromFileOrOverride(
+    fileConfig.failOnBuild,
+    overrides.failOnBuild,
+    false
+  );
 
   const compression = {
     gzip:

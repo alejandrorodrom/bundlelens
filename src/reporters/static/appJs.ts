@@ -491,7 +491,7 @@ export const APP_JS = `
     var search = el("input", {
       className: "vuln-search",
       type: "search",
-      placeholder: "Search package, severity, or range…",
+      placeholder: "Package, severity, range, CVE…",
       "aria-label": "Filter " + title
     });
     var tableWrap = el("div", null, []);
@@ -499,11 +499,25 @@ export const APP_JS = `
       tableWrap.innerHTML = "";
       var filtered = list.filter(function (v) {
         if (!state.search) return true;
+        var nodesHay =
+          v.nodes == null
+            ? ""
+            : typeof v.nodes === "string"
+              ? v.nodes
+              : JSON.stringify(v.nodes);
+        var fixHay =
+          v.fixAvailable == null
+            ? ""
+            : typeof v.fixAvailable === "boolean"
+              ? String(v.fixAvailable)
+              : JSON.stringify(v.fixAvailable);
         var hay = [
           normalizeText(v.package),
           normalizeText(v.severity),
           normalizeText(v.range),
-          normalizeText(viaSummary(v.via))
+          normalizeText(viaSummary(v.via)),
+          normalizeText(nodesHay),
+          normalizeText(fixHay)
         ].join(" ");
         return hay.indexOf(state.search) >= 0;
       }).slice().sort(compareBy(state.sortKey, state.sortDir));
@@ -554,7 +568,8 @@ export const APP_JS = `
       tableWrap.appendChild(vt);
     }
     search.addEventListener("input", function (e) {
-      state.search = normalizeText(e.target && e.target.value);
+      var inp = e.currentTarget;
+      state.search = normalizeText(inp && inp.value);
       render();
     });
     wrap.appendChild(search);
@@ -1283,6 +1298,7 @@ export const APP_JS = `
   if (report.insights) tocLinks.push(["insights", "Insights"]);
   if (build) tocLinks.push(["build", "Build"]);
   if (sum.byType && sum.byType.length) tocLinks.push(["composition", "Composition"]);
+  if (report.audit) tocLinks.push(["vulnerabilities", "Vulnerabilities"]);
   if (report.files && report.files.length) tocLinks.push(["files", "Files"]);
   tocLinks.push(["rankings", "Rankings"]);
   var dist = report.distributions || {};
@@ -1291,7 +1307,6 @@ export const APP_JS = `
   if (Object.keys(pc).length) tocLinks.push(["percentiles", "Percentiles"]);
   var sm = (report.files || []).filter(function (f) { return f.isSourceMap || f.type === "sourcemap"; });
   if (sm.length) tocLinks.push(["sourcemaps", "Source maps"]);
-  if (report.audit) tocLinks.push(["vulnerabilities", "Vulnerabilities"]);
   if (report.thresholds && report.thresholds.length) tocLinks.push(["thresholds", "Thresholds"]);
   tocLinks.push(["json", "Raw JSON"]);
   root.appendChild(buildToc(tocLinks));
@@ -1353,6 +1368,16 @@ export const APP_JS = `
     }));
   }
 
+  if (report.audit) {
+    var a = report.audit;
+    var aw = el("div", null, []);
+    aw.appendChild(buildVulnerabilitiesSectionBody(a));
+    root.appendChild(section("Vulnerabilities", aw, {
+      id: "vulnerabilities",
+      lead: "Dependency risk summary from vulnerability scanning, when available."
+    }));
+  }
+
   if (report.files && report.files.length) {
     root.appendChild(buildFilesStubSection(report.files.length));
   }
@@ -1398,16 +1423,6 @@ export const APP_JS = `
     root.appendChild(section("Source maps", smWrap, {
       id: "sourcemaps",
       lead: "Detected source maps and their likely related compiled files."
-    }));
-  }
-
-  if (report.audit) {
-    var a = report.audit;
-    var aw = el("div", null, []);
-    aw.appendChild(buildVulnerabilitiesSectionBody(a));
-    root.appendChild(section("Vulnerabilities", aw, {
-      id: "vulnerabilities",
-      lead: "Dependency risk summary from vulnerability scanning, when available."
     }));
   }
 

@@ -17,6 +17,37 @@ async function pathExists(abs: string): Promise<boolean> {
   }
 }
 
+/** Nearest `package.json` from `startAbs` up through `ceilingAbs`, else `startAbs`. */
+export async function findPackageJsonDir(
+  startAbs: string,
+  ceilingAbs: string
+): Promise<string> {
+  const start = path.resolve(startAbs);
+  const ceiling = path.resolve(ceilingAbs);
+  const rel = path.relative(ceiling, start);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    return start;
+  }
+  let d = start;
+  for (;;) {
+    if (await pathExists(path.join(d, "package.json"))) {
+      return d;
+    }
+    if (d === ceiling) {
+      return start;
+    }
+    const parent = path.dirname(d);
+    if (parent === d) {
+      return start;
+    }
+    const relParent = path.relative(ceiling, parent);
+    if (relParent.startsWith("..") || path.isAbsolute(relParent)) {
+      return start;
+    }
+    d = parent;
+  }
+}
+
 type InstallCandidate = {
   manager: "pnpm" | "yarn" | "bun" | "npm";
   lockfile: string;

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { input, search } from "@inquirer/prompts";
+import { search } from "@inquirer/prompts";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { runBuild } from "../core/runBuild.js";
 import { writeCompareHtmlReport } from "../reporters/compareHtml.js";
@@ -19,7 +19,7 @@ import { createSpinner } from "../utils/spinner.js";
 import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { resolvePathInCwd } from "../utils/pathResolve.js";
-import { printAnalyzerNotices } from "./shared.js";
+import { printAnalyzerNotices, promptRequiredValue } from "./shared.js";
 
 /** Options for `runCompare` (project cwd, argv, and optional CLI overrides). */
 export type CompareCliOptions = {
@@ -215,28 +215,6 @@ async function runOneSide(options: {
   resolvedBuildDirAbs: string;
   resolvedInstallCommand?: string;
 }> {
-  const promptRequiredValue = async (args: {
-    message: string;
-    requiredMessage: string;
-    validationMessage: string;
-  }): Promise<string> => {
-    if (!isInteractiveTerminal()) {
-      throw new Error(args.requiredMessage);
-    }
-    promptHooks?.pause();
-    try {
-      return (
-        await input({
-          message: args.message,
-          validate: (v) =>
-            v.trim().length > 0 ? true : args.validationMessage,
-        })
-      ).trim();
-    } finally {
-      promptHooks?.resume();
-    }
-  };
-
   const {
     worktreeCwd,
     checkoutRoot,
@@ -276,8 +254,10 @@ async function runOneSide(options: {
   if (!cmd) {
     cmd = await promptRequiredValue({
       message: `${options.label}: build command not found in config. Enter command (e.g. npm run build)`,
-      requiredMessage: `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`,
-      validationMessage: "Build command is required.",
+      validateMessage: "Build command is required.",
+      nonInteractiveErrorMessage: `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`,
+      onBeforePrompt: () => promptHooks?.pause(),
+      onAfterPrompt: () => promptHooks?.resume(),
     });
   }
   let buildDirAbs = sideConfig.buildDir;
@@ -287,8 +267,10 @@ async function runOneSide(options: {
   if (!buildDirAbs) {
     const rawBuildDir = await promptRequiredValue({
       message: `${options.label}: buildDir not found in config. Enter build output directory (e.g. dist, .next, out)`,
-      requiredMessage: `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`,
-      validationMessage: "buildDir is required.",
+      validateMessage: "buildDir is required.",
+      nonInteractiveErrorMessage: `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`,
+      onBeforePrompt: () => promptHooks?.pause(),
+      onAfterPrompt: () => promptHooks?.resume(),
     });
     buildDirAbs = resolvePathInCwd(rawBuildDir, worktreeCwd);
   }
@@ -321,6 +303,8 @@ async function runOneSide(options: {
     outputDirAbs: outputScratchDir,
     config: { ...sideConfig, audit },
     build,
+    npmAuditCwd: worktreeCwd,
+    npmAuditCeiling: checkoutRoot,
     onStatus: (m) => {
       let line = m;
       if (m.startsWith("Indexing files")) {

@@ -1,14 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { BundleLensReport } from "../types/report.js";
-import { escapeJsonForScript, writeReportStaticAssets } from "./htmlAssets.js";
+import {
+  buildReportHtmlShell,
+  escapeJsonForScript,
+  writeReportStaticAssets,
+} from "./htmlAssets.js";
 
-/**
- * Shared HTML layout for index/files/rankings views.
- *
- * @param options - Page title, subtitle HTML, view id, and escaped JSON payload.
- * @returns Full HTML string.
- */
 function htmlShell(options: {
   title: string;
   subtitle: string;
@@ -16,56 +14,24 @@ function htmlShell(options: {
   escapedJson: string;
 }): string {
   const { title, subtitle, view, escapedJson } = options;
-  const printPageOverride =
+  const headExtra =
     view === "files"
       ? `<style media="print">@page { size: landscape; margin: 0; }</style>`
-      : "";
-  return `<!DOCTYPE html>
-<html lang="en" data-bundlelens-view="${view}">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title}</title>
-  <link rel="stylesheet" href="./assets/app.css" />
-  ${printPageOverride}
-</head>
-<body>
-  <a class="skip-link" href="#report-content">Skip to content</a>
-  <header class="bl-header">
-    <div class="bl-header-inner">
-      <div class="bl-header-titles">
-        <h1>${title}</h1>
-        <p class="bl-sub">${subtitle}</p>
-      </div>
-      <div class="bl-pdf-wrap no-print">
-        <div class="bl-header-actions">
-          <button type="button" class="bl-action-btn" id="bundlelens-pdf">Save as PDF</button>
-          <a
-            class="bl-action-btn bl-action-link"
-            href="./report.json"
-            download="bundlelens-report.json"
-          >Download JSON</a>
-        </div>
-        <span class="bl-pdf-hint">PDF: print dialog → Save as PDF. JSON: full report as <code>report.json</code>.</span>
-      </div>
-    </div>
-  </header>
-  <main id="report-content">
-    <div id="root"></div>
-  </main>
-  <script type="application/json" id="bundlelens-report">${escapedJson}</script>
-  <script src="./assets/app.js"></script>
-</body>
-</html>`;
+      : undefined;
+  return buildReportHtmlShell({
+    dataView: view,
+    pageTitle: title,
+    subtitle,
+    escapedJson,
+    jsonHref: "./report.json",
+    jsonDownload: "bundlelens-report.json",
+    pdfHintInner:
+      "PDF: print dialog → Save as PDF. JSON: full report as <code>report.json</code>.",
+    headExtra,
+  });
 }
 
-/**
- * Writes `index.html`, optional `files.html`, `rankings.html`, and shared `assets/*`.
- *
- * @param report - Serialized report used for all pages.
- * @param outputDirAbs - Report output root.
- * @returns Paths to generated HTML entry points.
- */
+/** Writes `index.html`, optional `files.html`, `rankings.html`, and shared assets. */
 export async function writeHtmlReport(
   report: BundleLensReport,
   outputDirAbs: string

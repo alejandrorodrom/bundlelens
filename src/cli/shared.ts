@@ -2,13 +2,7 @@ import process from "node:process";
 import { input } from "@inquirer/prompts";
 import { isInteractiveTerminal } from "../utils/tty.js";
 
-/**
- * Prints non-fatal analyzer lines to stderr with a warning prefix.
- *
- * @param notices - Human-readable notice strings (empty/undefined skips output).
- * @param options - Optional heading after the warning icon (default: `Analyzer notices`).
- * @param options.trailingBlankLine - When false, omits the final blank line (matches legacy compare output).
- */
+/** Prints analyzer notices to stderr (optional heading and trailing newline). */
 export function printAnalyzerNotices(
   notices: string[] | undefined,
   options?: { headingAfterIcon?: string; trailingBlankLine?: boolean }
@@ -29,22 +23,30 @@ export function printAnalyzerNotices(
 }
 
 /**
- * Prompts for a non-empty string; throws `validateMessage` when not interactive.
- *
- * @param options - Inquirer message and validation error text.
- * @returns Trimmed non-empty string from the user.
+ * Inquirer prompt for a non-empty trimmed string. Throws if not interactive or on empty input;
+ * `nonInteractiveErrorMessage` overrides the thrown message when there is no TTY.
  */
 export async function promptRequiredValue(options: {
   message: string;
   validateMessage: string;
+  nonInteractiveErrorMessage?: string;
+  onBeforePrompt?: () => void;
+  onAfterPrompt?: () => void;
 }): Promise<string> {
+  const nonInteractive =
+    options.nonInteractiveErrorMessage ?? options.validateMessage;
   if (!isInteractiveTerminal()) {
-    throw new Error(options.validateMessage);
+    throw new Error(nonInteractive);
   }
-  return (
-    await input({
-      message: options.message,
-      validate: (v) => (v.trim().length > 0 ? true : options.validateMessage),
-    })
-  ).trim();
+  options.onBeforePrompt?.();
+  try {
+    return (
+      await input({
+        message: options.message,
+        validate: (v) => (v.trim().length > 0 ? true : options.validateMessage),
+      })
+    ).trim();
+  } finally {
+    options.onAfterPrompt?.();
+  }
 }

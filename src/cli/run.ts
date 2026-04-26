@@ -98,6 +98,7 @@ export async function runRun(options: RunCliOptions): Promise<void> {
       outputDirAbs,
       config,
       build,
+      npmAuditCwd: cwd,
       onStatus: (msg) => {
         spin.update(msg);
       },

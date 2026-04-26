@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import process from "node:process";
 import type { ResolvedConfig } from "../types/config.js";
 import type { BundleLensReport, FileEntry } from "../types/report.js";
 import {
@@ -14,9 +15,14 @@ import { evaluateThresholds } from "../analyzers/thresholdAnalyzer.js";
 import { buildRankings } from "./rankings.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { buildInsights } from "../analyzers/insightsAnalyzer.js";
+import { findPackageJsonDir } from "../utils/dependencies.js";
 import { nodeErrnoCode } from "../utils/nodeErrno.js";
 
-/** Inputs for scanning a build output directory and assembling a `BundleLensReport`. */
+/**
+ * Options for {@link analyzeBuildDir}. When `config.audit` is true, `npm audit` runs under
+ * `npmAuditCwd` (or `process.cwd()`); with `npmAuditCeiling`, the cwd is resolved upward
+ * to the nearest `package.json` up to that directory (Git worktrees).
+ */
 export type AnalyzeOptions = {
   mode: "run" | "analyze";
   buildDirAbs: string;
@@ -24,6 +30,8 @@ export type AnalyzeOptions = {
   config: ResolvedConfig;
   build: BundleLensReport["build"];
   onStatus?: (message: string) => void;
+  npmAuditCwd?: string;
+  npmAuditCeiling?: string;
 };
 
 /**
@@ -127,6 +135,11 @@ export async function analyzeBuildDir(
 ): Promise<BundleLensReport> {
   const { mode, buildDirAbs, outputDirAbs, config, build, onStatus } =
     options;
+  const npmAuditBase = options.npmAuditCwd ?? process.cwd();
+  const npmAuditDir =
+    options.npmAuditCeiling != null
+      ? await findPackageJsonDir(npmAuditBase, options.npmAuditCeiling)
+      : npmAuditBase;
 
   const analysisStartedAt = Date.now();
 
@@ -219,7 +232,7 @@ export async function analyzeBuildDir(
   let audit: BundleLensReport["audit"] = null;
   if (config.audit) {
     onStatus?.("Running npm audit (may take a moment)…");
-    audit = await collectNpmAudit(process.cwd());
+    audit = await collectNpmAudit(npmAuditDir);
   }
 
   const analysisDurationMs = Date.now() - analysisStartedAt;

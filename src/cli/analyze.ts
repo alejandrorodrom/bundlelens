@@ -62,6 +62,7 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
       outputDirAbs,
       config,
       build: null,
+      npmAuditCwd: cwd,
       onStatus: (msg) => spin.update(msg),
     });
     spin.stop("Build output analysis complete");
