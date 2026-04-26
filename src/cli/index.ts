@@ -2,59 +2,14 @@
 /**
  * CLI entrypoint for the `bundlelens` command (`run`, `analyze`, `compare`, `init`).
  */
-import path from "node:path";
 import process from "node:process";
-import { input } from "@inquirer/prompts";
 import { cac } from "cac";
 import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
-import { resolveConfig } from "../utils/config.js";
-import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
-import { runBuild } from "../core/runBuild.js";
-import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
-import { generateReport } from "../core/generateReport.js";
-import { createSpinner } from "../utils/spinner.js";
-import { ensureDependenciesIfNeeded } from "../utils/dependencies.js";
-import { printTerminalSummary } from "../utils/terminalSummary.js";
-import { runInit } from "./init.js";
+import { runAnalyze } from "./analyze.js";
 import { runCompare } from "./compare.js";
-
-/**
- * Prints non-fatal analyzer lines to stderr with a warning prefix.
- *
- * @param notices - Human-readable notice strings (empty skips output).
- */
-function printAnalyzerNotices(notices: string[]): void {
-  if (notices.length === 0) return;
-  const warningIcon = process.stderr.isTTY ? "\x1b[33m⚠\x1b[0m" : "⚠";
-  console.warn("");
-  console.warn(`${warningIcon} Analyzer notices`);
-  for (const n of notices) {
-    console.warn(`  - ${n}`);
-  }
-  console.warn("");
-}
-
-/**
- * Prompts for a non-empty string; throws `validateMessage` when not interactive.
- *
- * @param options - Inquirer message and validation error text.
- * @returns Trimmed non-empty string from the user.
- */
-async function promptRequiredValue(options: {
-  message: string;
-  validateMessage: string;
-}): Promise<string> {
-  if (!isInteractiveTerminal()) {
-    throw new Error(options.validateMessage);
-  }
-  return (
-    await input({
-      message: options.message,
-      validate: (v) => (v.trim().length > 0 ? true : options.validateMessage),
-    })
-  ).trim();
-}
+import { runInit } from "./init.js";
+import { runRun } from "./run.js";
 
 const cli = cac("bundlelens");
 
@@ -80,107 +35,15 @@ cli
     "Do not propagate build exit code even if failOnBuild is true in config"
   )
   .action(async (buildCommand: string | undefined, options: Record<string, unknown>) => {
-    const cwd = process.cwd();
     const argv = process.argv;
-    const cliCmd = buildCommand?.trim();
-    const config = await resolveConfig(cwd, {
-      buildCommand: cliCmd || undefined,
+    await runRun({
+      cwd: process.cwd(),
+      argv,
+      buildCommand: buildCommand?.trim(),
       buildDir: options.buildDir as string | undefined,
-      outputDir: options.output as string | undefined,
-      audit: auditFromArgv(argv),
-      failOnBuild: failOnBuildFromArgv(argv),
-      configPath: options.config as string | undefined,
+      output: options.output as string | undefined,
+      config: options.config as string | undefined,
     });
-
-    let resolvedCmd = config.buildCommand?.trim();
-    if (!resolvedCmd) {
-      try {
-        resolvedCmd = await promptRequiredValue({
-          message:
-            'Missing build command in config/flags. Enter build command (e.g. "npm run build")',
-          validateMessage: "Build command is required.",
-        });
-      } catch {
-        console.error(
-          'Missing build command: set buildCommand in bundlelens.config.json, pass `bundlelens run "<cmd>"`, or run in an interactive terminal.'
-        );
-        process.exitCode = 1;
-        return;
-      }
-    }
-
-    let buildDirAbs = config.buildDir;
-    if (!buildDirAbs) {
-      try {
-        const raw = await promptRequiredValue({
-          message:
-            "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
-          validateMessage: "buildDir is required.",
-        });
-        buildDirAbs = path.resolve(cwd, raw);
-      } catch {
-        console.error(
-          "Missing build directory: set buildDir in bundlelens.config.json, pass --build-dir, or run in an interactive terminal."
-        );
-        process.exitCode = 1;
-        return;
-      }
-    }
-
-    const outputDirAbs = config.outputDir;
-
-    const spin = createSpinner();
-    spin.start("Running build command…");
-    let build;
-    try {
-      await ensureDependenciesIfNeeded({
-        label: "run",
-        cwd,
-        onStatus: (msg) => spin.update(msg),
-        preferredCommand: config.install?.command,
-      });
-      const result = await runBuild(resolvedCmd, cwd, outputDirAbs);
-      build = result.build;
-      const secs = (build.durationMs / 1000).toFixed(1);
-      const ok = build.exitCode === 0 || build.exitCode === null;
-      spin.stop(
-        ok
-          ? `Build finished in ${secs}s`
-          : `Build exited with code ${build.exitCode} (${secs}s)`
-      );
-
-      spin.start("Analyzing build output…");
-      const report = await analyzeBuildDir({
-        mode: "run",
-        buildDirAbs,
-        outputDirAbs,
-        config,
-        build,
-        onStatus: (msg) => {
-          spin.update(msg);
-        },
-      });
-      spin.stop("Build output analysis complete");
-      const notices = report.metadata.analysisNotices ?? [];
-      printAnalyzerNotices(notices);
-
-      spin.start("Writing report…");
-      await generateReport(report, outputDirAbs);
-      spin.stop("Report written.");
-      printTerminalSummary(report);
-    } catch (e) {
-      spin.fail(e instanceof Error ? e.message : "Error while running bundlelens");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (
-      config.failOnBuild &&
-      typeof build.exitCode === "number" &&
-      build.exitCode !== 0
-    ) {
-      process.exitCode = build.exitCode;
-    }
   });
 
 cli
@@ -200,69 +63,15 @@ cli
   )
   .option("--no-audit", "Skip npm audit for this run")
   .action(async (buildDir: string | undefined, options: Record<string, unknown>) => {
-    const cwd = process.cwd();
     const argv = process.argv;
-    const fromPos = buildDir?.trim();
-    const fromFlag = (options.buildDir as string | undefined)?.trim();
-    const cliBuildDir = fromPos || fromFlag || undefined;
-    const config = await resolveConfig(cwd, {
-      buildDir: cliBuildDir,
-      outputDir: options.output as string | undefined,
-      audit: auditFromArgv(argv),
-      configPath: options.config as string | undefined,
+    await runAnalyze({
+      cwd: process.cwd(),
+      argv,
+      buildDirPos: buildDir,
+      buildDirFlag: options.buildDir as string | undefined,
+      output: options.output as string | undefined,
+      config: options.config as string | undefined,
     });
-
-    let buildDirAbs = config.buildDir;
-    if (!buildDirAbs) {
-      try {
-        const raw = await promptRequiredValue({
-          message:
-            "Missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)",
-          validateMessage: "buildDir is required.",
-        });
-        buildDirAbs = path.resolve(cwd, raw);
-      } catch {
-        console.error(
-          "Missing build directory: use analyze <dir>, --build-dir, set buildDir in bundlelens.config.json, or run in an interactive terminal."
-        );
-        process.exitCode = 1;
-        return;
-      }
-    }
-
-    const outputDirAbs = config.outputDir;
-
-    const spin = createSpinner();
-    try {
-      spin.start("Analyzing build output…");
-      const report = await analyzeBuildDir({
-        mode: "analyze",
-        buildDirAbs,
-        outputDirAbs,
-        config,
-        build: null,
-        onStatus: (msg) => spin.update(msg),
-      });
-      spin.stop("Build output analysis complete");
-      const notices = report.metadata.analysisNotices ?? [];
-      printAnalyzerNotices(notices);
-
-      spin.start("Writing report…");
-      const { filesPath } = await generateReport(report, outputDirAbs);
-      spin.stop("Report written.");
-
-      printTerminalSummary(report);
-      console.log(`Report: ${outputDirAbs}/index.html`);
-      console.log(`Rankings: ${outputDirAbs}/rankings.html`);
-      if (filesPath) {
-        console.log(`Files: ${outputDirAbs}/files.html`);
-      }
-    } catch (e) {
-      spin.fail(
-        e instanceof Error ? e.message : "Error while analyzing build output"
-      );
-      process.exitCode = 1;
-    }
   });
 
 cli
