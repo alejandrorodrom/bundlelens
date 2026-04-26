@@ -42,27 +42,6 @@ export async function getGitRoot(startDir: string): Promise<string | null> {
 }
 
 /**
- * Short symbolic name of the current branch, or `null` if detached or on error.
- *
- * @param gitRoot - Repository root path.
- * @returns Branch short name, or `null`.
- */
-export async function getCurrentBranchShort(
-  gitRoot: string
-): Promise<string | null> {
-  try {
-    const { stdout } = await execa("git", ["symbolic-ref", "-q", "--short", "HEAD"], {
-      cwd: gitRoot,
-      stripFinalNewline: true,
-    });
-    const b = stdout.trim();
-    return b || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Local and remote ref short names for branch pickers (deduplicated, sorted).
  *
  * @param gitRoot - Repository root path.

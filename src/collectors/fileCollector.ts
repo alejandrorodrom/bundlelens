@@ -19,14 +19,12 @@ export type CollectFilesProgress =
   | { phase: "index"; current: number; total: number }
   | { phase: "compress"; current: number; total: number };
 
-/** Counts and small samples for non-fatal read/compression issues. */
+/** Counts and small samples for non-fatal read issues during indexing. */
 export type CollectFilesDiagnostics = {
   discoveredFiles: number;
   indexedFiles: number;
   skippedReadFiles: number;
-  compressionReadErrors: number;
   skippedReadSamples: Array<{ path: string; code: string }>;
-  compressionReadSamples: Array<{ path: string; code: string }>;
 };
 
 type StagedFile = {
@@ -164,9 +162,7 @@ export async function collectFiles(
         discoveredFiles: 0,
         indexedFiles: 0,
         skippedReadFiles: 0,
-        compressionReadErrors: 0,
         skippedReadSamples: [],
-        compressionReadSamples: [],
       },
     };
   }
@@ -175,8 +171,11 @@ export async function collectFiles(
   const needCompress = Boolean(compression.gzip || compression.brotli);
   const total = paths.length;
   const emitProgress = (current: number): void => {
-    onProgress?.({ phase: "index", current, total });
-    if (needCompress) onProgress?.({ phase: "compress", current, total });
+    onProgress?.(
+      needCompress
+        ? { phase: "compress", current, total }
+        : { phase: "index", current, total }
+    );
   };
 
   const outcomes: IndexOutcome[] = new Array(paths.length);
@@ -230,9 +229,7 @@ export async function collectFiles(
       discoveredFiles: paths.length,
       indexedFiles: entries.length,
       skippedReadFiles,
-      compressionReadErrors: 0,
       skippedReadSamples,
-      compressionReadSamples: [],
     },
   };
 }

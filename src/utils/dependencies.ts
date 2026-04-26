@@ -1,21 +1,8 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 import { input, select } from "@inquirer/prompts";
+import { pathExists } from "./pathExists.js";
 import { runShellCommand } from "./shell.js";
 import { isInteractiveTerminal } from "./tty.js";
-
-/**
- * @param abs - Absolute filesystem path.
- * @returns Whether `fs.access` succeeds.
- */
-async function pathExists(abs: string): Promise<boolean> {
-  try {
-    await fs.access(abs);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** Nearest `package.json` from `startAbs` up through `ceilingAbs`, else `startAbs`. */
 export async function findPackageJsonDir(

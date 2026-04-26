@@ -1,20 +1,11 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 import type { AuditReport, AuditVulnerability } from "../types/report.js";
 import dns from "node:dns/promises";
+import { pathExists } from "../utils/pathExists.js";
 import { runShellCommand } from "../utils/shell.js";
 
 /** How we run the audit (aligned with lockfile priority in `dependencies.ts`). */
 type AuditMode = "pnpm" | "yarn-npm" | "yarn-classic" | "bun" | "npm";
-
-async function pathExists(abs: string): Promise<boolean> {
-  try {
-    await fs.access(abs);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Picks pnpm / Yarn Berry (`yarn npm audit`) / Yarn Classic / Bun / npm from lockfiles under `cwd`.
@@ -253,7 +244,8 @@ export async function collectNpmAudit(cwd: string): Promise<AuditReport | null> 
   if (!online) {
     return {
       status: "requires_internet",
-      message: "Se requiere conexión a internet para analizar vulnerabilidades.",
+      message:
+        "Internet connection is required to analyze dependency vulnerabilities.",
       total: null,
       bySeverity: {},
       byDirectness: { direct: 0, transitive: 0, unknown: 0 },
@@ -289,7 +281,7 @@ export async function collectNpmAudit(cwd: string): Promise<AuditReport | null> 
   ) {
     return {
       status: "error",
-      message: "No se pudo obtener el resultado de vulnerabilidades.",
+      message: "Could not obtain vulnerability audit output.",
       total: null,
       bySeverity: {},
       byDirectness: { direct: 0, transitive: 0, unknown: 0 },
@@ -334,7 +326,7 @@ export async function collectNpmAudit(cwd: string): Promise<AuditReport | null> 
     message:
       vulnerabilities.length > 0
         ? null
-        : "No se detectaron vulnerabilidades en las dependencias analizadas.",
+        : "No vulnerabilities were found in the analyzed dependencies.",
     total,
     bySeverity,
     byDirectness,

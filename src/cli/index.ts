@@ -36,14 +36,19 @@ cli
   )
   .action(async (buildCommand: string | undefined, options: Record<string, unknown>) => {
     const argv = process.argv;
-    await runRun({
-      cwd: process.cwd(),
-      argv,
-      buildCommand: buildCommand?.trim(),
-      buildDir: options.buildDir as string | undefined,
-      output: options.output as string | undefined,
-      config: options.config as string | undefined,
-    });
+    try {
+      await runRun({
+        cwd: process.cwd(),
+        argv,
+        buildCommand: buildCommand?.trim(),
+        buildDir: options.buildDir as string | undefined,
+        output: options.output as string | undefined,
+        config: options.config as string | undefined,
+      });
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exitCode = 1;
+    }
   });
 
 cli
@@ -64,14 +69,19 @@ cli
   .option("--no-audit", "Skip npm audit for this run")
   .action(async (buildDir: string | undefined, options: Record<string, unknown>) => {
     const argv = process.argv;
-    await runAnalyze({
-      cwd: process.cwd(),
-      argv,
-      buildDirPos: buildDir,
-      buildDirFlag: options.buildDir as string | undefined,
-      output: options.output as string | undefined,
-      config: options.config as string | undefined,
-    });
+    try {
+      await runAnalyze({
+        cwd: process.cwd(),
+        argv,
+        buildDirPos: buildDir,
+        buildDirFlag: options.buildDir as string | undefined,
+        output: options.output as string | undefined,
+        config: options.config as string | undefined,
+      });
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exitCode = 1;
+    }
   });
 
 cli
@@ -140,12 +150,17 @@ cli
     "Report output directory written in config (default: bundlelens)"
   )
   .action(async (options: Record<string, unknown>) => {
-    await runInit({
-      cwd: process.cwd(),
-      force: Boolean(options.force),
-      skipGitignore: Boolean(options.skipGitignore),
-      outputDir: options.output as string | undefined,
-    });
+    try {
+      await runInit({
+        cwd: process.cwd(),
+        force: Boolean(options.force),
+        skipGitignore: Boolean(options.skipGitignore),
+        outputDir: options.output as string | undefined,
+      });
+    } catch (e) {
+      console.error(e instanceof Error ? e.message : e);
+      process.exitCode = 1;
+    }
   });
 
 cli.help();

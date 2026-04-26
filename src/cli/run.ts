@@ -7,6 +7,7 @@ import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { generateReport } from "../core/generateReport.js";
 import { createSpinner } from "../utils/spinner.js";
 import { ensureDependenciesIfNeeded } from "../utils/dependencies.js";
+import { ensureNpmrcPackageLockTrue } from "../utils/npmrcPackageLock.js";
 import { printTerminalSummary } from "../utils/terminalSummary.js";
 import { printAnalyzerNotices, promptRequiredValue } from "./shared.js";
 
@@ -75,6 +76,7 @@ export async function runRun(options: RunCliOptions): Promise<void> {
   spin.start("Running build command…");
   let build;
   try {
+    await ensureNpmrcPackageLockTrue(cwd);
     await ensureDependenciesIfNeeded({
       label: "run",
       cwd,

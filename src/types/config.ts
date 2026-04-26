@@ -2,18 +2,22 @@
  * Shape of `bundlelens.config.json` and the fully merged settings used by the CLI/core.
  */
 
+/** All supported file categories (single source of truth for metrics and thresholds). */
+export const FILE_CATEGORIES = [
+  "javascript",
+  "css",
+  "image",
+  "font",
+  "sourcemap",
+  "html",
+  "json",
+  "wasm",
+  "media",
+  "other",
+] as const;
+
 /** High-level file classification for metrics and thresholds. */
-export type FileCategory =
-  | "javascript"
-  | "css"
-  | "image"
-  | "font"
-  | "sourcemap"
-  | "html"
-  | "json"
-  | "wasm"
-  | "media"
-  | "other";
+export type FileCategory = (typeof FILE_CATEGORIES)[number];
 
 /** Optional per-category numeric limits when thresholds are enabled. */
 export type ThresholdCategoryConfig = {

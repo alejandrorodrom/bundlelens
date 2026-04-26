@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { pathExists } from "./pathExists.js";
 import type {
   BundleLensConfig,
   ResolvedConfig,
@@ -8,8 +9,6 @@ import type {
 
 /** Default config file name in the project root. */
 export const BUNDLELENS_CONFIG_FILENAME = "bundlelens.config.json";
-
-const DEFAULT_CONFIG_NAMES = [BUNDLELENS_CONFIG_FILENAME];
 
 const defaultCompression = { gzip: true, brotli: true };
 
@@ -36,21 +35,10 @@ export async function findConfigFile(
 ): Promise<string | undefined> {
   if (explicitPath) {
     const abs = path.resolve(cwd, explicitPath);
-    try {
-      await fs.access(abs);
-      return abs;
-    } catch {
-      return undefined;
-    }
+    return (await pathExists(abs)) ? abs : undefined;
   }
-  for (const name of DEFAULT_CONFIG_NAMES) {
-    const p = path.join(cwd, name);
-    try {
-      await fs.access(p);
-      return p;
-    } catch {}
-  }
-  return undefined;
+  const defaultPath = path.join(cwd, BUNDLELENS_CONFIG_FILENAME);
+  return (await pathExists(defaultPath)) ? defaultPath : undefined;
 }
 
 /**
@@ -63,35 +51,37 @@ async function readJsonConfig(filePath: string): Promise<BundleLensConfig> {
 }
 
 /**
- * Resolves `buildDir` from CLI override vs file config with correct anchor directory.
+ * Resolves `buildDir`: file config is checked first (same precedence as `buildCommand` via `??`);
+ * when the file omits `buildDir`, the CLI value is resolved relative to the config directory
+ * when possible, otherwise `cwd`.
  *
  * @param cwd - Project cwd.
  * @param configPath - Absolute config file path, when any.
- * @param primary - CLI override for `buildDir` (wins when set).
- * @param fallback - File-config `buildDir` when no CLI override.
+ * @param fileBuildDir - `buildDir` from the config file.
+ * @param cliBuildDir - CLI `--build-dir` override.
  * @returns Absolute build directory, or `undefined`.
  */
 function resolveBuildDirAbs(
   cwd: string,
   configPath: string | undefined,
-  primary: string | undefined,
-  fallback: string | undefined
+  fileBuildDir: string | undefined,
+  cliBuildDir: string | undefined
 ): string | undefined {
-  const trimmedPrimary = primary?.trim();
-  if (trimmedPrimary) {
-    return path.resolve(cwd, trimmedPrimary);
+  const fromFile = fileBuildDir?.trim();
+  if (fromFile) {
+    return path.resolve(cwd, fromFile);
   }
-  const trimmedFile = fallback?.trim();
-  if (!trimmedFile) {
+  const fromCli = cliBuildDir?.trim();
+  if (!fromCli) {
     return undefined;
   }
-  if (path.isAbsolute(trimmedFile)) {
-    return path.normalize(trimmedFile);
+  if (path.isAbsolute(fromCli)) {
+    return path.normalize(fromCli);
   }
   if (configPath) {
-    return path.resolve(path.dirname(configPath), trimmedFile);
+    return path.resolve(path.dirname(configPath), fromCli);
   }
-  return path.resolve(cwd, trimmedFile);
+  return path.resolve(cwd, fromCli);
 }
 
 /** CLI flags and paths merged over optional file-based `BundleLensConfig`. */

@@ -148,9 +148,7 @@ export async function analyzeBuildDir(
     discoveredFiles: 0,
     indexedFiles: 0,
     skippedReadFiles: 0,
-    compressionReadErrors: 0,
     skippedReadSamples: [],
-    compressionReadSamples: [],
   };
   const analysisNotices: string[] = [];
   onStatus?.("Checking build output directory…");
@@ -163,11 +161,10 @@ export async function analyzeBuildDir(
     );
     files = result.entries;
     diagnostics = result.diagnostics;
-    const hasReadIssues =
-      diagnostics.skippedReadFiles > 0 || diagnostics.compressionReadErrors > 0;
+    const hasReadIssues = diagnostics.skippedReadFiles > 0;
     if (hasReadIssues) {
       analysisNotices.push(
-        `Scan stats: discovered=${diagnostics.discoveredFiles}, indexed=${diagnostics.indexedFiles}, skippedRead=${diagnostics.skippedReadFiles}, compressionReReadErrors=${diagnostics.compressionReadErrors}`
+        `Scan stats: discovered=${diagnostics.discoveredFiles}, indexed=${diagnostics.indexedFiles}, skippedRead=${diagnostics.skippedReadFiles}`
       );
     }
 
@@ -190,18 +187,6 @@ export async function analyzeBuildDir(
         );
       }
     }
-    if (diagnostics.compressionReadErrors > 0) {
-      analysisNotices.push(
-        `${diagnostics.compressionReadErrors} file(s) could not be re-read for gzip/brotli (raw sizes from indexing are still available).`
-      );
-      if (diagnostics.compressionReadSamples.length > 0) {
-        const parts = diagnostics.compressionReadSamples
-          .map((s) => `${s.path} [${s.code}]`)
-          .join("; ");
-        analysisNotices.push(`Compression re-read error sample (max 5): ${parts}`);
-      }
-    }
-
     if (files.length === 0) {
       analysisNotices.push(
         `No files indexed under: ${buildDirAbs} (empty directory or all reads failed).`

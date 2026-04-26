@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { BundleLensConfig } from "../types/config.js";
 import { BUNDLELENS_CONFIG_FILENAME } from "../utils/config.js";
+import { pathExists } from "../utils/pathExists.js";
 
 const BUILD_DIR_CANDIDATES = ["dist", "build", "out", ".next"] as const;
 const BUNDLELENS_SCHEMA_URL = "./bundlelens.schema.json";
@@ -35,19 +36,33 @@ async function detectBuildDir(cwd: string): Promise<string> {
 }
 
 /**
- * Suggests a default `buildCommand` for new configs based on `package.json` scripts.
+ * Suggests a default `buildCommand` for new configs from `package.json` and lockfiles.
  *
  * @param cwd - Project root containing `package.json`.
- * @returns Example command string (currently `npm run build` when a build script exists).
+ * @returns Example shell command (prefers the package manager implied by lockfiles when `build` exists).
  */
 async function detectBuildCommandExample(cwd: string): Promise<string> {
+  let hasBuildScript = false;
   try {
     const raw = await fs.readFile(path.join(cwd, "package.json"), "utf8");
     const pkg = JSON.parse(raw) as { scripts?: Record<string, string> };
-    if (pkg.scripts?.build?.trim()) {
-      return "npm run build";
-    }
-  } catch {}
+    hasBuildScript = Boolean(pkg.scripts?.build?.trim());
+  } catch {
+    return "npm run build";
+  }
+  if (!hasBuildScript) {
+    return "npm run build";
+  }
+  const p = (...parts: string[]) => path.join(cwd, ...parts);
+  if (await pathExists(p("pnpm-lock.yaml"))) {
+    return "pnpm run build";
+  }
+  if (await pathExists(p("yarn.lock"))) {
+    return "yarn build";
+  }
+  if (await pathExists(p("bun.lockb")) || await pathExists(p("bun.lock"))) {
+    return "bun run build";
+  }
   return "npm run build";
 }
 

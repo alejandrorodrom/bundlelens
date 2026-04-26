@@ -1,18 +1,5 @@
-import type { FileCategory } from "../types/config.js";
+import { FILE_CATEGORIES, type FileCategory } from "../types/config.js";
 import type { ByTypeEntry, FileEntry, Summary } from "../types/report.js";
-
-const ALL_TYPES: FileCategory[] = [
-  "javascript",
-  "css",
-  "image",
-  "font",
-  "sourcemap",
-  "html",
-  "json",
-  "wasm",
-  "media",
-  "other",
-];
 
 /**
  * Aggregates totals and per-type rollups for indexed files.
@@ -30,7 +17,7 @@ export function buildSummary(files: FileEntry[]): Summary {
     FileCategory,
     { count: number; raw: number; gzip: number; brotli: number }
   >();
-  for (const t of ALL_TYPES) {
+  for (const t of FILE_CATEGORIES) {
     agg.set(t, { count: 0, raw: 0, gzip: 0, brotli: 0 });
   }
 
@@ -48,7 +35,7 @@ export function buildSummary(files: FileEntry[]): Summary {
   }
 
   const byType: ByTypeEntry[] = [];
-  for (const t of ALL_TYPES) {
+  for (const t of FILE_CATEGORIES) {
     const a = agg.get(t)!;
     if (a.count === 0 && a.raw === 0) continue;
     byType.push({

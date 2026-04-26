@@ -19,6 +19,7 @@ import {
 import { createSpinner } from "../utils/spinner.js";
 import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
+import { pathExists } from "../utils/pathExists.js";
 import { resolvePathInCwd } from "../utils/pathResolve.js";
 import { printAnalyzerNotices, promptRequiredValue } from "./shared.js";
 
@@ -91,12 +92,7 @@ async function configPathForCompareWorktree(options: {
     const abs = path.isAbsolute(p)
       ? path.normalize(p)
       : path.resolve(options.worktreeCwd, p);
-    try {
-      await fs.access(abs);
-      return abs;
-    } catch {
-      return undefined;
-    }
+    return (await pathExists(abs)) ? abs : undefined;
   };
   return (
     (await tryAccess(options.mappedInCheckout)) ??
