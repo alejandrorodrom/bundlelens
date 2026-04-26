@@ -232,21 +232,36 @@ cli
 
     const outputDirAbs = config.outputDir;
 
-    const report = await analyzeBuildDir({
-      mode: "analyze",
-      buildDirAbs,
-      outputDirAbs,
-      config,
-      build: null,
-    });
-    const notices = report.metadata.analysisNotices ?? [];
-    printAnalyzerNotices(notices);
-    const { filesPath } = await generateReport(report, outputDirAbs);
-    printTerminalSummary(report);
-    console.log(`Report: ${outputDirAbs}/index.html`);
-    console.log(`Rankings: ${outputDirAbs}/rankings.html`);
-    if (filesPath) {
-      console.log(`Files: ${outputDirAbs}/files.html`);
+    const spin = createSpinner();
+    try {
+      spin.start("Analyzing build output…");
+      const report = await analyzeBuildDir({
+        mode: "analyze",
+        buildDirAbs,
+        outputDirAbs,
+        config,
+        build: null,
+        onStatus: (msg) => spin.update(msg),
+      });
+      spin.stop("Build output analysis complete");
+      const notices = report.metadata.analysisNotices ?? [];
+      printAnalyzerNotices(notices);
+
+      spin.start("Writing report…");
+      const { filesPath } = await generateReport(report, outputDirAbs);
+      spin.stop("Report written.");
+
+      printTerminalSummary(report);
+      console.log(`Report: ${outputDirAbs}/index.html`);
+      console.log(`Rankings: ${outputDirAbs}/rankings.html`);
+      if (filesPath) {
+        console.log(`Files: ${outputDirAbs}/files.html`);
+      }
+    } catch (e) {
+      spin.fail(
+        e instanceof Error ? e.message : "Error while analyzing build output"
+      );
+      process.exitCode = 1;
     }
   });
 
