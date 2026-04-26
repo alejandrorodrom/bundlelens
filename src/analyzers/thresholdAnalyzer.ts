@@ -7,6 +7,14 @@ type MetricKey =
   | "maxTotalRawBytes"
   | "maxTotalGzipBytes";
 
+/**
+ * Per-file threshold rows for a category (raw and gzip caps when configured).
+ *
+ * @param category - File category being checked.
+ * @param files - All indexed files.
+ * @param cfg - Numeric limits from config for that category.
+ * @returns Flat list of threshold evaluation rows.
+ */
 function checkFileMetrics(
   category: FileCategory,
   files: FileEntry[],
@@ -47,6 +55,14 @@ function checkFileMetrics(
   return results;
 }
 
+/**
+ * Aggregate threshold rows for a category (total raw/gzip caps when configured).
+ *
+ * @param category - File category being checked.
+ * @param files - All indexed files.
+ * @param cfg - Numeric limits from config for that category.
+ * @returns Zero or more aggregate threshold rows.
+ */
 function checkTotals(
   category: FileCategory,
   files: FileEntry[],
@@ -85,6 +101,14 @@ function checkTotals(
   return results;
 }
 
+/**
+ * Evaluates configured size thresholds when enabled; returns `null` if disabled.
+ *
+ * @param thresholds - Enabled flag plus per-category numeric rules.
+ * @param files - Indexed build artifacts.
+ * @param _summary - Reserved for future aggregate rules (unused today).
+ * @returns Row list, or `null` when thresholds are off.
+ */
 export function evaluateThresholds(
   thresholds: ResolvedThresholds,
   files: FileEntry[],

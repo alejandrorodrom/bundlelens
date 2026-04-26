@@ -1,7 +1,10 @@
 const THREE_MIN_MS = 3 * 60 * 1000;
 
 /**
- * Human-readable duration: seconds up to 3 minutes inclusive, then "Xm Ys" when longer.
+ * Human-readable duration: ms, seconds (≤3 min), or `Xm Ys` for longer spans.
+ *
+ * @param ms - Duration in milliseconds (coerced to non-negative integer).
+ * @returns Compact duration string.
  */
 export function formatDurationHuman(ms: number): string {
   const n = Math.max(0, Math.round(Number(ms) || 0));

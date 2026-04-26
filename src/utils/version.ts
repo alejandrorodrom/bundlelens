@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 let cached: string | null = null;
 
+/**
+ * Reads the npm `version` field from `package.json` adjacent to the built CLI (cached).
+ *
+ * @returns Semver string, or `"0.0.0"` when unreadable.
+ */
 export function readBundleLensVersion(): string {
   if (cached) return cached;
   try {

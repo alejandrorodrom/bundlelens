@@ -15,16 +15,20 @@ import { buildRankings } from "./rankings.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { buildInsights } from "../analyzers/insightsAnalyzer.js";
 
+/** Inputs for scanning a build output directory and assembling a `BundleLensReport`. */
 export type AnalyzeOptions = {
   mode: "run" | "analyze";
   buildDirAbs: string;
   outputDirAbs: string;
   config: ResolvedConfig;
   build: BundleLensReport["build"];
-  /** Status text for UI (e.g. spinner in `bundlelens run`). */
   onStatus?: (message: string) => void;
 };
 
+/**
+ * @param e - Any thrown or caught value.
+ * @returns Node `errno` string when present, else empty string.
+ */
 function errnoFromUnknown(e: unknown): string {
   if (e && typeof e === "object" && "code" in e) {
     const c = (e as NodeJS.ErrnoException).code;
@@ -33,7 +37,10 @@ function errnoFromUnknown(e: unknown): string {
   return "";
 }
 
-/** Short hint for CLI / HTML notices. */
+/**
+ * @param code - Filesystem errno (e.g. `ENOENT`).
+ * @returns Short user-facing hint, or empty string when unknown.
+ */
 function hintForBuildDirErrno(code: string): string {
   switch (code) {
     case "ENOENT":
@@ -50,6 +57,12 @@ function hintForBuildDirErrno(code: string): string {
   }
 }
 
+/**
+ * Maps file collection progress events to short human-readable status lines.
+ *
+ * @param onStatus - Optional callback; when omitted returns `undefined`.
+ * @returns Progress handler for `collectFiles`, or `undefined`.
+ */
 function attachCollectFilesProgress(
   onStatus: ((message: string) => void) | undefined
 ): ((p: CollectFilesProgress) => void) | undefined {
@@ -98,6 +111,12 @@ function attachCollectFilesProgress(
   };
 }
 
+/**
+ * Indexes `buildDirAbs`, runs optional npm audit, and builds summaries/rankings/insights.
+ *
+ * @param options - Paths, resolved config, optional build record, and status hook.
+ * @returns Complete `BundleLensReport` (files may be empty on access errors).
+ */
 export async function analyzeBuildDir(
   options: AnalyzeOptions
 ): Promise<BundleLensReport> {

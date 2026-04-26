@@ -4,6 +4,12 @@ import type { BundleLensReport } from "../types/report.js";
 import { APP_CSS } from "./static/appCss.js";
 import { APP_JS } from "./static/appJs.js";
 
+/**
+ * Escapes characters that would break an inline `<script type="application/json">` payload.
+ *
+ * @param json - Serialized JSON text.
+ * @returns Safe string for embedding in HTML.
+ */
 function escapeJsonForScript(json: string): string {
   return json
     .replace(/</g, "\\u003c")
@@ -11,6 +17,12 @@ function escapeJsonForScript(json: string): string {
     .replace(/&/g, "\\u0026");
 }
 
+/**
+ * Shared HTML layout for index/files/rankings views.
+ *
+ * @param options - Page title, subtitle HTML, view id, and escaped JSON payload.
+ * @returns Full HTML string.
+ */
 function htmlShell(options: {
   title: string;
   subtitle: string;
@@ -18,7 +30,6 @@ function htmlShell(options: {
   escapedJson: string;
 }): string {
   const { title, subtitle, view, escapedJson } = options;
-  /** @page cannot be scoped by attribute; only injected on the files document. */
   const printPageOverride =
     view === "files"
       ? `<style media="print">@page { size: landscape; margin: 0; }</style>`
@@ -62,6 +73,13 @@ function htmlShell(options: {
 </html>`;
 }
 
+/**
+ * Writes `index.html`, optional `files.html`, `rankings.html`, and shared `assets/*`.
+ *
+ * @param report - Serialized report used for all pages.
+ * @param outputDirAbs - Report output root.
+ * @returns Paths to generated HTML entry points.
+ */
 export async function writeHtmlReport(
   report: BundleLensReport,
   outputDirAbs: string

@@ -1,9 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import process from "node:process";
 import { input, select } from "@inquirer/prompts";
 import { runShellCommand } from "./shell.js";
+import { isInteractiveTerminal } from "./tty.js";
 
+/**
+ * @param abs - Absolute filesystem path.
+ * @returns Whether `fs.access` succeeds.
+ */
 async function pathExists(abs: string): Promise<boolean> {
   try {
     await fs.access(abs);
@@ -19,6 +23,12 @@ type InstallCandidate = {
   command: string;
 };
 
+/**
+ * Detects likely install commands from lockfiles under `cwd`.
+ *
+ * @param cwd - Project root containing `package.json`.
+ * @returns Candidate list, or `null` when not a Node project.
+ */
 async function detectInstallCandidates(cwd: string): Promise<InstallCandidate[] | null> {
   const hasPkg = await pathExists(path.join(cwd, "package.json"));
   if (!hasPkg) return null;
@@ -63,13 +73,18 @@ async function detectInstallCandidates(cwd: string): Promise<InstallCandidate[] 
   return candidates;
 }
 
+/**
+ * Interactive picker for an install command when none is configured.
+ *
+ * @param options - Log label and candidate commands.
+ * @returns Shell command string to execute.
+ */
 async function chooseInstallCommand(options: {
   label: string;
   candidates: InstallCandidate[];
 }): Promise<string> {
   const { label, candidates } = options;
-  const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  if (!tty) {
+  if (!isInteractiveTerminal()) {
     throw new Error(
       `${label}: missing node_modules and interactive install command selection is required. Run in an interactive terminal or install dependencies manually first.`
     );
@@ -99,14 +114,23 @@ async function chooseInstallCommand(options: {
   return selected;
 }
 
+/**
+ * If `cwd` has `package.json` but no `node_modules`, runs an install (or prompts for one).
+ *
+ * @param options.label - Prefix used in logs/errors.
+ * @param options.cwd - Project directory to install into.
+ * @param options.onStatus - Optional status callback.
+ * @param options.preferredCommand - Non-interactive install command when set.
+ * @param options.onBeforeInteractivePrompt - Pauses UI (e.g. spinner) before Inquirer.
+ * @param options.onAfterInteractivePrompt - Resumes UI after Inquirer.
+ * @returns The install command used, or `undefined` when install was skipped.
+ */
 export async function ensureDependenciesIfNeeded(options: {
   label: string;
   cwd: string;
   onStatus?: (msg: string) => void;
   preferredCommand?: string;
-  /** Called immediately before an interactive install command picker (Inquirer). */
   onBeforeInteractivePrompt?: () => void;
-  /** Called after the picker returns (or throws), before `npm install` runs. */
   onAfterInteractivePrompt?: () => void;
 }): Promise<string | undefined> {
   const {

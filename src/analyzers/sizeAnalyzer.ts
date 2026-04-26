@@ -14,6 +14,12 @@ const ALL_TYPES: FileCategory[] = [
   "other",
 ];
 
+/**
+ * Aggregates totals and per-type rollups for indexed files.
+ *
+ * @param files - Indexed build artifacts.
+ * @returns Totals and `byType` rollups.
+ */
 export function buildSummary(files: FileEntry[]): Summary {
   const totalFiles = files.length;
   let totalRawBytes = 0;

@@ -6,6 +6,10 @@ import { BUNDLELENS_CONFIG_FILENAME } from "../utils/config.js";
 const BUILD_DIR_CANDIDATES = ["dist", "build", "out", ".next"] as const;
 const BUNDLELENS_SCHEMA_URL = "./bundlelens.schema.json";
 
+/**
+ * @param abs - Absolute filesystem path.
+ * @returns Whether `stat` succeeds and the path is a directory.
+ */
 async function pathIsDir(abs: string): Promise<boolean> {
   try {
     const st = await fs.stat(abs);
@@ -15,6 +19,12 @@ async function pathIsDir(abs: string): Promise<boolean> {
   }
 }
 
+/**
+ * Picks the first existing candidate folder name under `cwd`, else `"dist"`.
+ *
+ * @param cwd - Project root to probe.
+ * @returns Relative build output directory name for the scaffolded config.
+ */
 async function detectBuildDir(cwd: string): Promise<string> {
   for (const name of BUILD_DIR_CANDIDATES) {
     if (await pathIsDir(path.join(cwd, name))) {
@@ -24,6 +34,12 @@ async function detectBuildDir(cwd: string): Promise<string> {
   return "dist";
 }
 
+/**
+ * Suggests a default `buildCommand` for new configs based on `package.json` scripts.
+ *
+ * @param cwd - Project root containing `package.json`.
+ * @returns Example command string (currently `npm run build` when a build script exists).
+ */
 async function detectBuildCommandExample(cwd: string): Promise<string> {
   try {
     const raw = await fs.readFile(path.join(cwd, "package.json"), "utf8");
@@ -31,18 +47,26 @@ async function detectBuildCommandExample(cwd: string): Promise<string> {
     if (pkg.scripts?.build?.trim()) {
       return "npm run build";
     }
-  } catch {
-    /* no package.json or invalid */
-  }
+  } catch {}
   return "npm run build";
 }
 
+/**
+ * Normalizes a report output path segment for `.gitignore` matching.
+ *
+ * @param dir - Raw output directory (may include slashes).
+ * @returns Trimmed relative segment, defaulting to `bundlelens`.
+ */
 function normalizeOutputDirForGitignore(dir: string): string {
   const trimmed = dir.trim().replace(/^\/+/, "").replace(/\/+$/, "");
   return trimmed || "bundlelens";
 }
 
-/** True if this line (gitignore rule) already ignores the given directory path. */
+/**
+ * @param line - Single `.gitignore` line (comments/blank handled).
+ * @param dir - Normalized report directory name.
+ * @returns Whether the line ignores that directory (exact, `/**`, or prefix).
+ */
 function lineIgnoresDir(line: string, dir: string): boolean {
   const t = line.trim();
   if (!t || t.startsWith("#")) {
@@ -53,6 +77,11 @@ function lineIgnoresDir(line: string, dir: string): boolean {
   return normalized === dir || normalized === `${dir}/**` || normalized.startsWith(`${dir}/`);
 }
 
+/**
+ * @param content - Full `.gitignore` file text.
+ * @param outputDir - Report directory name or path segment.
+ * @returns True if any line already ignores `outputDir`.
+ */
 function gitignoreAlreadyIgnoresOutput(
   content: string,
   outputDir: string
@@ -66,6 +95,13 @@ function gitignoreAlreadyIgnoresOutput(
   return false;
 }
 
+/**
+ * Appends a standard ignore block for the BundleLens report folder when needed.
+ *
+ * @param cwd - Project root (where `.gitignore` lives).
+ * @param outputDir - Report directory to ignore (normalized internally).
+ * @returns Whether a write occurred plus optional path/reason metadata.
+ */
 async function appendBundlelensToGitignore(
   cwd: string,
   outputDir: string
@@ -89,6 +125,14 @@ async function appendBundlelensToGitignore(
   return { appended: true, path: gitignorePath };
 }
 
+/**
+ * Default JSON object written by `bundlelens init`.
+ *
+ * @param buildDir - Detected or fallback build output folder.
+ * @param outputDir - Report output folder written into config.
+ * @param buildCommandExample - Suggested shell build command.
+ * @returns Serializable `BundleLensConfig`.
+ */
 function buildInitConfig(
   buildDir: string,
   outputDir: string,
@@ -129,6 +173,13 @@ type InitOptions = {
   skipGitignore?: boolean;
 };
 
+/**
+ * Scaffolds `bundlelens.config.json` and optionally updates `.gitignore` for the report dir.
+ *
+ * @param options - `cwd`, overwrite `force`, `skipGitignore`, and optional `outputDir`.
+ *
+ * @remarks Sets `process.exitCode` when the config file already exists and `--force` was not passed.
+ */
 export async function runInit(options: InitOptions): Promise<void> {
   const { cwd, force, skipGitignore } = options;
   const outputRel = options.outputDir?.trim() || "bundlelens";
@@ -142,9 +193,7 @@ export async function runInit(options: InitOptions): Promise<void> {
       );
       process.exitCode = 1;
       return;
-    } catch {
-      /* ok */
-    }
+    } catch {}
   }
 
   const buildDir = await detectBuildDir(cwd);
@@ -165,8 +214,6 @@ export async function runInit(options: InitOptions): Promise<void> {
   const gi = await appendBundlelensToGitignore(cwd, outputRel);
   if (gi.appended && gi.path) {
     console.log(`Updated ${gi.path} (${normalizeOutputDirForGitignore(outputRel)}/)`);
-  } else if (gi.reason === "no .gitignore") {
-    /* omitido a petición: solo si existe */
   } else if (gi.path && gi.reason === "already ignored") {
     console.log(`${gi.path} already ignores report output; skipped.`);
   }

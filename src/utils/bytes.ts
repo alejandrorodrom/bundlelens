@@ -1,5 +1,11 @@
 const KB = 1024;
 
+/**
+ * Formats a byte length using binary units (KiB, MiB, …).
+ *
+ * @param n - Non-negative byte length.
+ * @returns Human-readable size string.
+ */
 export function formatBytes(n: number): string {
   if (n === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -12,6 +18,12 @@ export function formatBytes(n: number): string {
   return `${v < 10 && i > 0 ? v.toFixed(2) : v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+/**
+ * Maps a raw byte size to the fixed histogram bucket used in distributions.
+ *
+ * @param rawBytes - File size in bytes.
+ * @returns Discrete bucket label.
+ */
 export function bucketForRawBytes(rawBytes: number): import("../types/report.js").SizeBucket {
   const b = rawBytes;
   const k10 = 10 * KB;

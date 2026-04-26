@@ -2,6 +2,10 @@ import type { AuditReport, AuditVulnerability } from "../types/report.js";
 import dns from "node:dns/promises";
 import { runShellCommand } from "../utils/shell.js";
 
+/**
+ * @param stdout - Raw `npm audit --json` stdout (may be empty).
+ * @returns Parsed JSON, or a small diagnostic object when JSON is invalid.
+ */
 function parseAuditJson(stdout: string): unknown {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
@@ -12,6 +16,10 @@ function parseAuditJson(stdout: string): unknown {
   }
 }
 
+/**
+ * @param data - Parsed audit JSON root object.
+ * @returns Flattened vulnerability rows (empty when missing).
+ */
 function extractVulnerabilities(data: unknown): AuditVulnerability[] {
   if (!data || typeof data !== "object") return [];
   const root = data as Record<string, unknown>;
@@ -43,6 +51,10 @@ function extractVulnerabilities(data: unknown): AuditVulnerability[] {
   return out;
 }
 
+/**
+ * @param vulnerabilities - Parsed vulnerability list.
+ * @returns Counts keyed by severity label.
+ */
 function countBySeverity(vulnerabilities: AuditVulnerability[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const v of vulnerabilities) {
@@ -52,6 +64,10 @@ function countBySeverity(vulnerabilities: AuditVulnerability[]): Record<string, 
   return counts;
 }
 
+/**
+ * @param vulnerabilities - Parsed vulnerability list.
+ * @returns Direct vs transitive vs unknown counts.
+ */
 function countByDirectness(vulnerabilities: AuditVulnerability[]): {
   direct: number;
   transitive: number;
@@ -70,6 +86,9 @@ function countByDirectness(vulnerabilities: AuditVulnerability[]): {
   return counts;
 }
 
+/**
+ * @returns Whether a quick DNS lookup to `registry.npmjs.org` succeeds.
+ */
 async function hasInternetConnectivity(): Promise<boolean> {
   try {
     await Promise.race([
@@ -84,6 +103,12 @@ async function hasInternetConnectivity(): Promise<boolean> {
   }
 }
 
+/**
+ * Runs `npm audit --json` in `cwd` and normalizes the result (or offline/error states).
+ *
+ * @param cwd - Directory where `npm audit` should run (package root).
+ * @returns Structured audit report (including offline/error statuses).
+ */
 export async function collectNpmAudit(cwd: string): Promise<AuditReport | null> {
   const online = await hasInternetConnectivity();
   if (!online) {

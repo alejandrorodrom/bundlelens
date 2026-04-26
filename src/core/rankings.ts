@@ -1,5 +1,9 @@
 import type { FileEntry, RankingItem, Rankings } from "../types/report.js";
 
+/**
+ * @param items - Path/byte pairs to rank.
+ * @returns New array sorted descending by `bytes`.
+ */
 function sortByBytes(
   items: { path: string; bytes: number }[]
 ): RankingItem[] {
@@ -18,6 +22,12 @@ const ASSET_TYPES = new Set<string>([
   "other",
 ]);
 
+/**
+ * Builds sorted ranking tables from indexed file entries.
+ *
+ * @param files - Indexed build artifacts.
+ * @returns Precomputed ranking tables for the HTML report.
+ */
 export function buildRankings(files: FileEntry[]): Rankings {
   const filesByRawBytes = sortByBytes(
     files.map((f) => ({ path: f.path, bytes: f.rawBytes }))

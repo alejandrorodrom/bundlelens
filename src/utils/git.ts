@@ -1,14 +1,20 @@
 import path from "node:path";
 import { execa } from "execa";
 
+/** Handle for a detached Git worktree created for an isolated checkout. */
 export type GitWorktreeHandle = {
-  /** Directory where the build should run (repo subfolder when cwd is not the root). */
+  /** Effective project directory (e.g. monorepo subfolder inside the worktree). */
   cwd: string;
-  /** Root of the temporary Git worktree (not the main repository root). */
+  /** Worktree root directory (where Git placed the checkout). */
   root: string;
+  /** Best-effort removal of the worktree via `git worktree remove`. */
   remove: () => Promise<void>;
 };
 
+/**
+ * @param s - Multi-line command output.
+ * @returns Non-empty trimmed lines.
+ */
 function trimLines(s: string): string[] {
   return s
     .split(/\r?\n/)
@@ -16,6 +22,12 @@ function trimLines(s: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Returns the Git repository root for `startDir`, or `null` if not inside a repo.
+ *
+ * @param startDir - Any directory under the repository.
+ * @returns Absolute repo root, or `null` on failure.
+ */
 export async function getGitRoot(startDir: string): Promise<string | null> {
   try {
     const { stdout } = await execa("git", ["rev-parse", "--show-toplevel"], {
@@ -29,7 +41,12 @@ export async function getGitRoot(startDir: string): Promise<string | null> {
   }
 }
 
-/** Short name of the current branch, or null if detached / error. */
+/**
+ * Short symbolic name of the current branch, or `null` if detached or on error.
+ *
+ * @param gitRoot - Repository root path.
+ * @returns Branch short name, or `null`.
+ */
 export async function getCurrentBranchShort(
   gitRoot: string
 ): Promise<string | null> {
@@ -46,7 +63,10 @@ export async function getCurrentBranchShort(
 }
 
 /**
- * Local and remote refs (short names), sorted with exact duplicates removed.
+ * Local and remote ref short names for branch pickers (deduplicated, sorted).
+ *
+ * @param gitRoot - Repository root path.
+ * @returns Ref short names (empty array on Git error).
  */
 export async function listGitRefsForSearch(gitRoot: string): Promise<string[]> {
   try {
@@ -77,17 +97,21 @@ export async function listGitRefsForSearch(gitRoot: string): Promise<string[]> {
 }
 
 /**
- * Prepares an isolated directory with the contents of `ref` for builds.
- * Uses a detached worktree so the same branch as the main checkout can still be
- * materialized (Git forbids checking out one branch in two linked worktrees).
+ * Adds a detached worktree for `ref` under `tempParentDir`/`slotName` and returns paths for builds.
+ *
+ * @param options.gitRoot - Repository root path.
+ * @param options.projectCwd - Current project directory (must be under `gitRoot`).
+ * @param options.ref - Git ref to materialize (branch, tag, or SHA).
+ * @param options.tempParentDir - Folder receiving the worktree directory.
+ * @param options.slotName - Subfolder name under `tempParentDir` for this checkout.
+ * @returns Worktree cwd (project-relative) plus cleanup handle.
+ * @throws When `projectCwd` lies outside `gitRoot`.
  */
 export async function prepareWorktreeForRef(options: {
   gitRoot: string;
-  /** Effective project cwd (e.g. monorepo subfolder). */
   projectCwd: string;
   ref: string;
   tempParentDir: string;
-  /** Unique safe folder name under tempParentDir. */
   slotName: string;
 }): Promise<GitWorktreeHandle> {
   const { gitRoot, projectCwd, ref, tempParentDir, slotName } = options;
@@ -114,9 +138,7 @@ export async function prepareWorktreeForRef(options: {
         await execa("git", ["worktree", "remove", "--force", wtRoot], {
           cwd: gitRoot,
         });
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     },
   };
 }

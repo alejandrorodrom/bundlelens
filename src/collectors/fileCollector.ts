@@ -10,23 +10,27 @@ import {
   relatedPathsForFile,
 } from "../utils/fileTypes.js";
 
+/** Progress events while discovering, indexing, and measuring files. */
 export type CollectFilesProgress =
   | { phase: "discover"; stage: "listing" }
   | { phase: "discover"; stage: "done"; pathCount: number }
   | { phase: "index"; current: number; total: number }
   | { phase: "compress"; current: number; total: number };
 
+/** Counts and small samples for non-fatal read/compression issues. */
 export type CollectFilesDiagnostics = {
   discoveredFiles: number;
   indexedFiles: number;
   skippedReadFiles: number;
   compressionReadErrors: number;
-  /** Up to 5 relative paths with errno when read failed during indexing. */
   skippedReadSamples: Array<{ path: string; code: string }>;
-  /** Up to 5 paths that failed re-read for gzip/brotli. */
   compressionReadSamples: Array<{ path: string; code: string }>;
 };
 
+/**
+ * @param err - Any error from `fs` operations.
+ * @returns `err.code` when a string, otherwise `"UNKNOWN"`.
+ */
 function errnoCode(err: unknown): string {
   if (err && typeof err === "object" && "code" in err) {
     const c = (err as NodeJS.ErrnoException).code;
@@ -49,6 +53,13 @@ type StagedFile = {
   absPath: string;
 };
 
+/**
+ * Reads and classifies a single absolute file under the build directory.
+ *
+ * @param buildDirAbs - Root of the build output tree.
+ * @param abs - Absolute path to the file on disk.
+ * @returns Staged metadata, a read failure marker, or `null` when outside the tree.
+ */
 async function indexOneFile(
   buildDirAbs: string,
   abs: string
@@ -99,6 +110,14 @@ async function indexOneFile(
   };
 }
 
+/**
+ * Recursively lists files under `buildDirAbs`, measures sizes, and optionally gzip/brotli.
+ *
+ * @param buildDirAbs - Absolute build output directory.
+ * @param compression - Which compressed sizes to compute per file.
+ * @param onProgress - Optional coarse-grained progress callback.
+ * @returns File entries plus diagnostics for skipped reads / compression errors.
+ */
 export async function collectFiles(
   buildDirAbs: string,
   compression: ResolvedCompression,

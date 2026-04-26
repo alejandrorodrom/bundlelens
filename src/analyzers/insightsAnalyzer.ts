@@ -11,6 +11,10 @@ const EMPTY_BYTES_THRESHOLD = 20;
 const TOP_LEVEL_FOLDER_LIMIT = 15;
 const EMPTY_PATH_SAMPLE = 40;
 
+/**
+ * @param nums - Unsorted numeric samples.
+ * @returns Median value, or `null` when empty.
+ */
 function median(nums: number[]): number | null {
   if (nums.length === 0) {
     return null;
@@ -20,6 +24,10 @@ function median(nums: number[]): number | null {
   return s.length % 2 === 1 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
+/**
+ * @param nums - Numeric samples (any order).
+ * @returns Arithmetic mean, or `null` when empty.
+ */
 function mean(nums: number[]): number | null {
   if (nums.length === 0) {
     return null;
@@ -27,18 +35,37 @@ function mean(nums: number[]): number | null {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+/**
+ * @param f - Indexed file row.
+ * @returns True when the row represents a source map artifact.
+ */
 function isSourceMapFile(f: FileEntry): boolean {
   return f.type === "sourcemap" || f.isSourceMap;
 }
 
+/**
+ * @param f - Indexed file row.
+ * @returns True for non-map JavaScript or CSS deliverables.
+ */
 function isDeliverableJsCss(f: FileEntry): boolean {
   return !isSourceMapFile(f) && (f.type === "javascript" || f.type === "css");
 }
 
+/**
+ * @param f - Indexed file row.
+ * @returns True when the file is not classified as a source map.
+ */
 function isNonMapArtifact(f: FileEntry): boolean {
   return !isSourceMapFile(f);
 }
 
+/**
+ * Median/mean compression ratios (gzip/brotli over raw) for one file type.
+ *
+ * @param files - All indexed files.
+ * @param type - `javascript` or `css` (callers pass supported types).
+ * @returns Stats object, or `null` when no measurable ratios exist.
+ */
 function compressionStatsForType(
   files: FileEntry[],
   type: FileCategory
@@ -69,6 +96,13 @@ function compressionStatsForType(
   };
 }
 
+/**
+ * Derives higher-level signals (maps footprint, concentration, name hashes, etc.).
+ *
+ * @param files - Indexed build artifacts.
+ * @param summary - Precomputed totals used for percentages.
+ * @returns Structured insight object for HTML/JSON.
+ */
 export function buildInsights(files: FileEntry[], summary: Summary): BundleInsights {
   const totalRaw = summary.totalRawBytes || 0;
   const totalFiles = summary.totalFiles || 0;

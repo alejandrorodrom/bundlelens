@@ -1,3 +1,4 @@
+/** Shared report stylesheet (single bundle for index/files/rankings/compare views). */
 export const APP_CSS = `
 :root {
   --bg: #0c1017;
@@ -348,7 +349,6 @@ pre.raw {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.65rem;
 }
-/* Build execution: one row per field, label column + value column (not tiny left-stacked tiles). */
 .grid2.build-exec-grid {
   grid-template-columns: 1fr;
   gap: 0.55rem;
@@ -626,6 +626,32 @@ section.summary-panel .section-head {
   flex-direction: column;
   gap: 0;
 }
+.report-generated-bar {
+  margin: 0 0 1.1rem;
+  padding: 0.55rem 0.85rem;
+  background: #0b0f14;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.report-generated-label {
+  color: var(--muted);
+}
+.report-generated-time {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.report-generated-meta {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.8125rem;
+}
+.summary-meta-vuln-summary .summary-audit {
+  margin-bottom: 0;
+}
 .summary-lead {
   margin: 0 0 1rem;
   color: var(--muted);
@@ -842,7 +868,6 @@ section.summary-panel .section-head {
   color: var(--text);
 }
 
-/* —— Compare view (bundlelens compare) —— */
 html[data-bundlelens-view="compare"] .bl-sub {
   max-width: 52rem;
 }
@@ -1034,7 +1059,6 @@ table.compare-diff-table {
     max-width: none;
     width: 100%;
   }
-  /* Allow long tables/tabs to span pages; avoid was forcing the whole block to page 2. */
   .bl-section {
     width: 100%;
     box-sizing: border-box;

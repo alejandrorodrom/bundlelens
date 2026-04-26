@@ -16,6 +16,9 @@ const BUCKETS: SizeBucket[] = [
   "1mb+",
 ];
 
+/**
+ * @returns Zeroed histogram buckets for every `SizeBucket`.
+ */
 function emptyGroup(): DistributionGroup {
   return {
     "0-10kb": 0,
@@ -27,16 +30,24 @@ function emptyGroup(): DistributionGroup {
   };
 }
 
+/**
+ * @param group - Histogram to mutate in place.
+ * @param rawBytes - File size used to pick the bucket.
+ */
 function addToGroup(group: DistributionGroup, rawBytes: number): void {
   const b = bucketForRawBytes(rawBytes);
   group[b] += 1;
 }
 
+/**
+ * @param files - Candidate files.
+ * @param types - Allowed `FileCategory` values.
+ * @returns Files whose `type` is in `types`.
+ */
 function filterTypes(files: FileEntry[], types: Set<FileCategory>): FileEntry[] {
   return files.filter((f) => types.has(f.type));
 }
 
-/** Agrupa `html`, `json`, `wasm`, `media` y `other` en "other" para distribuciones. */
 const OTHER_DIST_TYPES = new Set<FileCategory>([
   "html",
   "json",
@@ -45,6 +56,12 @@ const OTHER_DIST_TYPES = new Set<FileCategory>([
   "other",
 ]);
 
+/**
+ * Histograms of file counts by raw-size bucket, overall and per category.
+ *
+ * @param files - Indexed build artifacts.
+ * @returns Counts per bucket for `all` plus major categories.
+ */
 export function buildDistributions(files: FileEntry[]): Distributions {
   const all = emptyGroup();
   const javascript = emptyGroup();
@@ -67,6 +84,13 @@ export function buildDistributions(files: FileEntry[]): Distributions {
   return { all, javascript, css, image, font, sourcemap, other };
 }
 
+/**
+ * Filters files belonging to the slice used in `Distributions[slice]`.
+ *
+ * @param files - Indexed build artifacts.
+ * @param slice - Distribution key (`all`, per-type, or grouped `other`).
+ * @returns Files that contribute to that slice's histogram.
+ */
 export function filesInDistributionSlice(
   files: FileEntry[],
   slice: keyof Distributions
@@ -82,4 +106,5 @@ export function filesInDistributionSlice(
   return filterTypes(files, OTHER_DIST_TYPES);
 }
 
+/** Ordered raw-size bucket keys used in distribution histograms. */
 export { BUCKETS };

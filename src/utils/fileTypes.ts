@@ -31,15 +31,26 @@ const MEDIA_EXT = new Set([
   ".m4a",
 ]);
 
-/** Patrones habituales de hash en nombres de artefactos (webpack, vite, etc.) */
 const HASH_IN_NAME =
   /[._-]([0-9a-f]{8,32}|[0-9A-F]{8,32})(?=\.[a-z0-9]+$)/i;
 
+/**
+ * Detects a content hash segment in a build artifact basename, if present.
+ *
+ * @param basename - File name without parent directories.
+ * @returns Captured hash hex, or `null`.
+ */
 export function detectNameHash(basename: string): string | null {
   const m = basename.match(HASH_IN_NAME);
   return m?.[1] ?? null;
 }
 
+/**
+ * Classifies a path relative to the build directory (extension, category, source map flag).
+ *
+ * @param relPath - POSIX-style path relative to build root.
+ * @returns Extension string, coarse `FileCategory`, and source map flag.
+ */
 export function classifyFile(relPath: string): {
   extension: string;
   type: FileCategory;
@@ -79,6 +90,14 @@ export function classifyFile(relPath: string): {
   return { extension: ext || "(none)", type: "other", isSourceMap: false };
 }
 
+/**
+ * Suggests related `.map` or sibling source paths for JS/CSS and `.map` files.
+ *
+ * @param relPath - Path relative to build root.
+ * @param type - Classified file category.
+ * @param isSourceMap - Whether this row is a source map artifact.
+ * @returns Related map/source paths when applicable.
+ */
 export function relatedPathsForFile(
   relPath: string,
   type: FileCategory,

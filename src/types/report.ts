@@ -1,5 +1,9 @@
+/**
+ * JSON payloads produced by BundleLens (single run, compare, and embedded HTML).
+ */
 import type { FileCategory } from "./config.js";
 
+/** Record of the user build command executed in `run` mode. */
 export type BuildExecution = {
   command: string;
   startedAt: string;
@@ -9,6 +13,7 @@ export type BuildExecution = {
   cwd: string;
 };
 
+/** One indexed artifact under the analyzed build directory. */
 export type FileEntry = {
   path: string;
   extension: string;
@@ -22,6 +27,7 @@ export type FileEntry = {
   relatedFile: string | null;
 };
 
+/** Per-category rollup used by `Summary.byType`. */
 export type ByTypeEntry = {
   type: FileCategory;
   count: number;
@@ -32,6 +38,7 @@ export type ByTypeEntry = {
   percentOfRawBytes: number;
 };
 
+/** Global totals plus per-type aggregates. */
 export type Summary = {
   totalFiles: number;
   totalRawBytes: number;
@@ -40,11 +47,13 @@ export type Summary = {
   byType: ByTypeEntry[];
 };
 
+/** Single row in a size ranking table. */
 export type RankingItem = {
   path: string;
   bytes: number;
 };
 
+/** Pre-sorted ranking tables for the HTML/JSON report. */
 export type Rankings = {
   filesByRawBytes: RankingItem[];
   filesByGzipBytes: RankingItem[];
@@ -55,6 +64,7 @@ export type Rankings = {
   sourceMapsByRawBytes: RankingItem[];
 };
 
+/** Raw-size histogram bucket labels. */
 export type SizeBucket =
   | "0-10kb"
   | "10-50kb"
@@ -63,8 +73,10 @@ export type SizeBucket =
   | "500kb-1mb"
   | "1mb+";
 
+/** File counts keyed by raw-size bucket. */
 export type DistributionGroup = Record<SizeBucket, number>;
 
+/** Histograms for all files and major categories. */
 export type Distributions = {
   all: DistributionGroup;
   javascript: DistributionGroup;
@@ -75,6 +87,7 @@ export type Distributions = {
   other: DistributionGroup;
 };
 
+/** Raw-byte percentile tuple for one slice. */
 export type PercentileSet = {
   p50: number;
   p75: number;
@@ -83,6 +96,7 @@ export type PercentileSet = {
   p99: number;
 };
 
+/** Percentiles of raw sizes per distribution slice. */
 export type Percentiles = {
   all: PercentileSet;
   javascript: PercentileSet;
@@ -93,6 +107,7 @@ export type Percentiles = {
   other: PercentileSet;
 };
 
+/** One row from `npm audit --json` (normalized subset). */
 export type AuditVulnerability = {
   package: string;
   severity: string;
@@ -103,6 +118,7 @@ export type AuditVulnerability = {
   fixAvailable: unknown;
 };
 
+/** Aggregated audit outcome for HTML/JSON reports. */
 export type AuditReport = {
   status: "ok" | "clean" | "requires_internet" | "error";
   message: string | null;
@@ -117,6 +133,7 @@ export type AuditReport = {
   raw: unknown;
 };
 
+/** One threshold evaluation (per file or aggregate metric). */
 export type ThresholdResult = {
   category: FileCategory;
   metric: string;
@@ -126,18 +143,18 @@ export type ThresholdResult = {
   exceeded: boolean;
 };
 
+/** Run context, timing, and non-fatal scan notices. */
 export type ReportMetadata = {
   generatedAt: string;
   bundlelensVersion: string;
   mode: "run" | "analyze";
   buildDir: string;
   outputDir: string;
-  /** Wall time spent inside BundleLens for this report (excludes child build when using `run`). */
   analysisDurationMs: number;
-  /** Non-fatal diagnostics from scan/analysis. */
   analysisNotices?: string[];
 };
 
+/** How much of the bundle consists of source maps vs deliverable JS/CSS. */
 export type SourceMapFootprint = {
   sourceMapFileCount: number;
   sourceMapRawBytes: number;
@@ -147,12 +164,14 @@ export type SourceMapFootprint = {
   percentOfFilesThatAreSourceMaps: number;
 };
 
+/** Largest file contribution to total raw bytes. */
 export type BundleConcentration = {
   largestFilePath: string | null;
   largestFileRawBytes: number;
   largestFilePercentOfTotalRaw: number;
 };
 
+/** gzip/brotli vs raw ratios for a file category. */
 export type CompressionRatioStats = {
   fileCount: number;
   medianGzipOverRaw: number | null;
@@ -161,12 +180,14 @@ export type CompressionRatioStats = {
   meanBrotliOverRaw: number | null;
 };
 
+/** Near-empty artifacts at or below a byte threshold. */
 export type EmptyFilesInsight = {
   thresholdBytes: number;
   count: number;
   samplePaths: string[];
 };
 
+/** First path segment rollup (top-level folder share of raw bytes). */
 export type TopLevelFolderStat = {
   folder: string;
   fileCount: number;
@@ -174,17 +195,20 @@ export type TopLevelFolderStat = {
   percentOfTotalRawBytes: number;
 };
 
+/** Heuristic warning when many maps ship with sizeable JS. */
 export type ProductionMapsInsight = {
   triggered: boolean;
   reason: string;
 };
 
+/** Content-hash naming vs plain names and duplicate basenames. */
 export type NameHashInsight = {
   withContentHashCount: number;
   withoutContentHashCount: number;
   duplicateBasenameFileCount: number;
 };
 
+/** Derived diagnostics beyond raw tables (maps, concentration, hashing, etc.). */
 export type BundleInsights = {
   sourceMaps: SourceMapFootprint;
   concentration: BundleConcentration;
@@ -198,6 +222,7 @@ export type BundleInsights = {
   nameHash: NameHashInsight;
 };
 
+/** Complete output of `analyzeBuildDir` / `bundlelens run|analyze`. */
 export type BundleLensReport = {
   metadata: ReportMetadata;
   build: BuildExecution | null;
@@ -211,7 +236,7 @@ export type BundleLensReport = {
   insights: BundleInsights;
 };
 
-/** Carga única embebida en `compare.html` / `compare-report.json`. */
+/** Payload for `compare.html` / `compare-report.json` (two full reports + refs). */
 export type BundleLensCompareReport = {
   _bundlelensCompare: true;
   bundlelensVersion: string;

@@ -1,15 +1,21 @@
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+/** Spinner on stderr; falls back to plain lines when stderr is not a TTY. */
 export type Spinner = {
+  /** Starts animation or prints a status line in non-TTY mode. */
   start: (message: string) => void;
+  /** Updates the current message (TTY spinner only). */
   update: (message: string) => void;
+  /** Clears the spinner; optional green check + final line. */
   stop: (finalLine?: string) => void;
+  /** Clears the spinner; optional red cross + final line. */
   fail: (finalLine?: string) => void;
 };
 
 /**
- * Spinner on stderr so it does not mix with the child build stdout.
- * Without a TTY, prints plain status lines instead.
+ * Creates a CLI spinner bound to `process.stderr`.
+ *
+ * @returns Spinner API (`start`/`update`/`stop`/`fail`).
  */
 export function createSpinner(): Spinner {
   let interval: ReturnType<typeof setInterval> | undefined;

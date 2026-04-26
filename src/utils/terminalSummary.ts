@@ -2,6 +2,10 @@ import type { BundleLensReport } from "../types/report.js";
 import { formatBytes } from "./bytes.js";
 import { formatDurationHuman } from "./formatDurationHuman.js";
 
+/**
+ * @param r - Ratio in `[0, 1]` or absent.
+ * @returns Percent string with one decimal, or an em dash when not a number.
+ */
 function fmtRatioPct(r: number | null | undefined): string {
   if (r == null || Number.isNaN(r)) {
     return "—";
@@ -9,9 +13,14 @@ function fmtRatioPct(r: number | null | undefined): string {
   return `${(r * 100).toFixed(1)}%`;
 }
 
-/** Ancho de la columna de etiqueta (sin los 4 espacios de sangría). */
 const INSIGHTS_LABEL_COL = 32;
 
+/**
+ * Appends the "Insights" subsection lines for stdout.
+ *
+ * @param lines - Mutable output buffer.
+ * @param report - Full report containing `insights`.
+ */
 function appendInsightsSummary(lines: string[], report: BundleLensReport): void {
   const ins = report.insights;
   if (!ins) {
@@ -76,6 +85,10 @@ function appendInsightsSummary(lines: string[], report: BundleLensReport): void 
   }
 }
 
+/**
+ * @param iso - ISO-8601 timestamp from report metadata.
+ * @returns Locale-medium date + short time, or the original string on parse failure.
+ */
 function formatGeneratedAt(iso: string): string {
   try {
     const d = new Date(iso);
@@ -88,6 +101,10 @@ function formatGeneratedAt(iso: string): string {
   }
 }
 
+/**
+ * @param mode - `run` or `analyze` from report metadata.
+ * @returns Human-readable mode label.
+ */
 function modeLabel(mode: string): string {
   if (mode === "run") {
     return "Build + analysis";
@@ -98,6 +115,11 @@ function modeLabel(mode: string): string {
   return mode;
 }
 
+/**
+ * @param compressed - gzip or brotli total bytes.
+ * @param raw - Raw total bytes.
+ * @returns Parenthetical savings text, or `null` when not a meaningful reduction.
+ */
 function pctVsRaw(compressed: number, raw: number): string | null {
   if (raw <= 0 || compressed <= 0 || compressed >= raw) {
     return null;
@@ -114,6 +136,10 @@ const SEVERITY_ORDER = [
   "unknown",
 ];
 
+/**
+ * @param key - Lower/any-case severity key from npm audit metadata.
+ * @returns Title-case label for display.
+ */
 function severityLabel(key: string): string {
   const k = key.toLowerCase();
   const map: Record<string, string> = {
@@ -127,6 +153,10 @@ function severityLabel(key: string): string {
   return map[k] ?? key;
 }
 
+/**
+ * @param bySeverity - Count map from audit metadata.
+ * @returns Non-zero severity keys ordered from most to least severe.
+ */
 function sortedSeverityKeys(bySeverity: Record<string, number>): string[] {
   const keys = Object.keys(bySeverity).filter((k) => (bySeverity[k] ?? 0) > 0);
   keys.sort((a, b) => {
@@ -142,6 +172,12 @@ function sortedSeverityKeys(bySeverity: Record<string, number>): string[] {
   return keys;
 }
 
+/**
+ * Appends the "Vulnerabilities" subsection when an audit payload exists.
+ *
+ * @param lines - Mutable output buffer.
+ * @param report - Full report containing optional `audit`.
+ */
 function appendAuditSummary(lines: string[], report: BundleLensReport): void {
   const a = report.audit;
   if (!a) {
@@ -189,6 +225,10 @@ function appendAuditSummary(lines: string[], report: BundleLensReport): void {
   }
 }
 
+/**
+ * @param report - Report possibly containing evaluated thresholds.
+ * @returns One-line threshold summary, or `null` when none.
+ */
 function thresholdsLine(report: BundleLensReport): string | null {
   const t = report.thresholds;
   if (!t?.length) {
@@ -199,8 +239,9 @@ function thresholdsLine(report: BundleLensReport): string | null {
 }
 
 /**
- * Prints a stdout summary aligned with the HTML "Overview" section.
- * Paths are listed last since they are secondary for a quick read.
+ * Prints a human-readable overview of a report to stdout (aligned with the HTML summary).
+ *
+ * @param report - Completed `BundleLensReport` from analysis.
  */
 export function printTerminalSummary(report: BundleLensReport): void {
   const m = report.metadata;

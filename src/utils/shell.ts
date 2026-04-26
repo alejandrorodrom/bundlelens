@@ -1,5 +1,6 @@
 import { execaCommand } from "execa";
 
+/** Result of running a shell command via `execa`. */
 export type ShellResult = {
   stdout: string;
   stderr: string;
@@ -9,6 +10,13 @@ export type ShellResult = {
   endedAt: string;
 };
 
+/**
+ * Runs `command` in `cwd` without throwing on non-zero exit (inspect `exitCode`).
+ *
+ * @param command - Full shell command string.
+ * @param cwd - Working directory for the subprocess.
+ * @returns Captured streams, timing, and exit metadata.
+ */
 export async function runShellCommand(
   command: string,
   cwd: string

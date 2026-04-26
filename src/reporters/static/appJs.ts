@@ -1,3 +1,4 @@
+/** Client-side script for rendering report JSON into the static HTML shells. */
 export const APP_JS = `
 (function () {
   (function setupPdfButton() {
@@ -43,7 +44,6 @@ export const APP_JS = `
     return el("table", { className: tc }, [thead, tb]);
   }
 
-  /** opts: { id?, className?, lead?, leadClassName? } */
   function section(title, body, opts) {
     opts = opts || {};
     var classes = ["bl-section"];
@@ -184,7 +184,51 @@ export const APP_JS = `
     } else {
       wrap.appendChild(el("p", { className: "summary-audit-note", text: "No severity breakdown is available in the audit metadata." }));
     }
+    wrap.appendChild(el("p", { className: "summary-audit-hint", text: "See the full Vulnerabilities section below for CVE listings." }));
     return wrap;
+  }
+
+  function buildVulnerabilitiesSectionBody(a) {
+    var sev = a.bySeverity || {};
+    var aw = el("div", { className: "vulnerabilities-detail-inner" }, []);
+    var directness = a.byDirectness || { direct: 0, transitive: 0, unknown: 0 };
+    aw.appendChild(kvGrid([
+      ["Total", a.total == null ? "n/a" : String(a.total)],
+      ["Direct", String(directness.direct || 0)],
+      ["Transitive", String(directness.transitive || 0)],
+      ["Unclassified", String(directness.unknown || 0)]
+    ]));
+    if (a.status === "requires_internet") {
+      aw.appendChild(infoBanner("warn", a.message || "Internet access is required."));
+    } else if (a.status === "clean") {
+      aw.appendChild(infoBanner("ok", "✔ No vulnerabilities were found."));
+    } else if (a.status === "error") {
+      aw.appendChild(infoBanner("error", a.message || "Vulnerability analysis could not be completed."));
+    }
+    var sevKeys = Object.keys(sev);
+    if (sevKeys.length) {
+      var sevWrap = el("div", { className: "sev-list" }, sevKeys.map(function (k) {
+        return el("div", { className: "sev-item" }, [
+          severityBadge(k),
+          el("span", { className: "sev-count", text: String(sev[k]) })
+        ]);
+      }));
+      aw.appendChild(sevWrap);
+    }
+    if (a.vulnerabilities && a.vulnerabilities.length) {
+      var direct = a.vulnerabilities.filter(function (v) { return v.isDirect === true; });
+      var transitive = a.vulnerabilities.filter(function (v) { return v.isDirect === false; });
+      var unknown = a.vulnerabilities.filter(function (v) { return v.isDirect == null; });
+      var cols = el("div", { className: "vuln-columns" }, []);
+      if (direct.length) cols.appendChild(vulnerabilitiesTable(direct, "Direct"));
+      if (transitive.length) cols.appendChild(vulnerabilitiesTable(transitive, "Transitive"));
+      aw.appendChild(cols);
+      if (unknown.length) {
+        aw.appendChild(el("h3", { className: "audit-subtitle", text: "Unclassified" }));
+        aw.appendChild(vulnerabilitiesTable(unknown, "Unclassified"));
+      }
+    }
+    return aw;
   }
 
   function buildSummaryBody(m, sum, audit) {
@@ -210,40 +254,23 @@ export const APP_JS = `
       statCard("Estimated gzip", fmtBytes(gzB), gzHint),
       statCard("Estimated brotli", fmtBytes(brB), brHint)
     ]);
-    var mode = m.mode || "";
-    var metaLeft = el("div", { className: "summary-meta-block" }, [
-      el("h3", { className: "summary-block-title", text: "Report context" }),
-      el("div", { className: "summary-row" }, [
-        el("span", { className: "summary-row-k", text: "Generated" }),
-        el("span", { className: "summary-row-v", title: m.generatedAt || "", text: formatGeneratedAt(m.generatedAt) })
-      ]),
-      el("div", { className: "summary-row" }, [
-        el("span", { className: "summary-row-k", text: "BundleLens" }),
-        el("span", { className: "summary-row-v", text: m.bundlelensVersion || "—" })
-      ]),
-      el("div", { className: "summary-row" }, [
-        el("span", { className: "summary-row-k", text: "Mode" }),
-        el("span", { className: "summary-row-v" }, [
-          el("span", { className: modeBadgeClass(mode), text: modeLabel(mode) })
-        ])
-      ]),
-      typeof m.analysisDurationMs === "number"
-        ? el("div", { className: "summary-row" }, [
-            el("span", { className: "summary-row-k", text: "Analysis time" }),
-            el("span", { className: "summary-row-v", text: formatDurationMs(m.analysisDurationMs) })
-          ])
-        : null
-    ]);
+    var metaKids = [];
+    if (audit) {
+      var auditSummary = buildAuditSummarySection(audit);
+      if (auditSummary) {
+        metaKids.push(
+          el("div", { className: "summary-meta-block summary-meta-vuln-summary" }, [auditSummary])
+        );
+      }
+    }
     var metaRight = el("div", { className: "summary-meta-block" }, [
       el("h3", { className: "summary-block-title", text: "Paths" }),
       pathBlock("Analyzed build directory", m.buildDir),
       pathBlock("BundleLens report output", m.outputDir)
     ]);
-    var meta = el("div", { className: "summary-meta" }, [metaLeft, metaRight]);
-    var auditBlock = buildAuditSummarySection(audit);
-    var layoutKids = [intro, stats];
-    if (auditBlock) layoutKids.push(auditBlock);
-    layoutKids.push(meta);
+    metaKids.push(metaRight);
+    var meta = el("div", { className: "summary-meta" }, metaKids);
+    var layoutKids = [intro, stats, meta];
     return el("div", { className: "summary-layout" }, layoutKids);
   }
 
@@ -532,7 +559,6 @@ export const APP_JS = `
     return wrap;
   }
 
-  /** Same UX pattern as the single-report audit block, for one side of compare. */
   function buildAuditCompareSide(audit, sideTitle) {
     var box = el("div", { className: "compare-audit-side" }, []);
     box.appendChild(el("h3", { className: "audit-subtitle compare-audit-side-title", text: sideTitle }));
@@ -1266,10 +1292,26 @@ export const APP_JS = `
   tocLinks.push(["json", "Raw JSON"]);
   root.appendChild(buildToc(tocLinks));
 
+  var genIso = m.generatedAt || "";
+  var genBarKids = [
+    el("span", { className: "report-generated-label", text: "Generated " }),
+    el("time", { className: "report-generated-time", datetime: genIso, text: formatGeneratedAt(genIso) })
+  ];
+  var modeStr = m.mode || "";
+  var metaLineParts = [
+    "BundleLens " + (m.bundlelensVersion || "—"),
+    modeLabel(modeStr)
+  ];
+  if (typeof m.analysisDurationMs === "number") {
+    metaLineParts.push("Analysis " + formatDurationMs(m.analysisDurationMs));
+  }
+  genBarKids.push(el("span", { className: "report-generated-meta", text: " · " + metaLineParts.join(" · ") }));
+  root.appendChild(el("div", { className: "report-generated-bar" }, genBarKids));
+
   root.appendChild(section("Overview", buildSummaryBody(m, sum, report.audit), {
     id: "resumen",
     className: "summary-panel",
-    lead: "Aggregated metrics and report context."
+    lead: "Aggregated metrics, paths, and dependency audit (when available)."
   }));
 
   var insightsSection = buildInsightsSection(report);
@@ -1357,45 +1399,8 @@ export const APP_JS = `
 
   if (report.audit) {
     var a = report.audit;
-    var sev = a.bySeverity || {};
     var aw = el("div", null, []);
-    var directness = a.byDirectness || { direct: 0, transitive: 0, unknown: 0 };
-    aw.appendChild(kvGrid([
-      ["Total", a.total == null ? "n/a" : String(a.total)],
-      ["Direct", String(directness.direct || 0)],
-      ["Transitive", String(directness.transitive || 0)],
-      ["Unclassified", String(directness.unknown || 0)]
-    ]));
-    if (a.status === "requires_internet") {
-      aw.appendChild(infoBanner("warn", a.message || "Internet access is required."));
-    } else if (a.status === "clean") {
-      aw.appendChild(infoBanner("ok", "✔ No vulnerabilities were found."));
-    } else if (a.status === "error") {
-      aw.appendChild(infoBanner("error", a.message || "Vulnerability analysis could not be completed."));
-    }
-    var sevKeys = Object.keys(sev);
-    if (sevKeys.length) {
-      var sevWrap = el("div", { className: "sev-list" }, sevKeys.map(function (k) {
-        return el("div", { className: "sev-item" }, [
-          severityBadge(k),
-          el("span", { className: "sev-count", text: String(sev[k]) })
-        ]);
-      }));
-      aw.appendChild(sevWrap);
-    }
-    if (a.vulnerabilities && a.vulnerabilities.length) {
-      var direct = a.vulnerabilities.filter(function (v) { return v.isDirect === true; });
-      var transitive = a.vulnerabilities.filter(function (v) { return v.isDirect === false; });
-      var unknown = a.vulnerabilities.filter(function (v) { return v.isDirect == null; });
-      var cols = el("div", { className: "vuln-columns" }, []);
-      if (direct.length) cols.appendChild(vulnerabilitiesTable(direct, "Direct"));
-      if (transitive.length) cols.appendChild(vulnerabilitiesTable(transitive, "Transitive"));
-      aw.appendChild(cols);
-      if (unknown.length) {
-        aw.appendChild(el("h3", { className: "audit-subtitle", text: "Unclassified" }));
-        aw.appendChild(vulnerabilitiesTable(unknown, "Unclassified"));
-      }
-    }
+    aw.appendChild(buildVulnerabilitiesSectionBody(a));
     root.appendChild(section("Vulnerabilities", aw, {
       id: "vulnerabilidades",
       lead: "Dependency risk summary from vulnerability scanning, when available."

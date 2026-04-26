@@ -7,6 +7,7 @@ import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
 import { runBuild } from "../core/runBuild.js";
 import { writeCompareHtmlReport } from "../reporters/compareHtml.js";
 import type { BundleLensCompareReport, BundleLensReport } from "../types/report.js";
+import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
 import { resolveConfig } from "../utils/config.js";
 import { ensureDependenciesIfNeeded } from "../utils/dependencies.js";
 import {
@@ -15,8 +16,10 @@ import {
   prepareWorktreeForRef,
 } from "../utils/git.js";
 import { createSpinner } from "../utils/spinner.js";
+import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
 
+/** Options for `runCompare` (project cwd, argv, and optional CLI overrides). */
 export type CompareCliOptions = {
   cwd: string;
   argv: string[];
@@ -34,11 +37,22 @@ type ComparePromptHooks = {
   resume: () => void;
 };
 
+/**
+ * Writes a green check (or plain text) plus a line to stdout.
+ *
+ * @param message - Status line without trailing newline.
+ */
 function printCheckLine(message: string): void {
   const ok = process.stdout.isTTY ? "\x1b[32m✔\x1b[0m" : "✔";
   process.stdout.write(`${ok} ${message}\n`);
 }
 
+/**
+ * Prints analyzer notices for one compare side to stderr.
+ *
+ * @param label - Side label (e.g. `base (main)`).
+ * @param notices - Optional notice list; empty/undefined skips output.
+ */
 function printSideNotices(label: string, notices: string[] | undefined): void {
   if (!notices || notices.length === 0) return;
   const warningIcon = process.stderr.isTTY ? "\x1b[33m⚠\x1b[0m" : "⚠";
@@ -49,19 +63,12 @@ function printSideNotices(label: string, notices: string[] | undefined): void {
   }
 }
 
-function auditFromArgv(argv: string[]): boolean | undefined {
-  if (argv.includes("--no-audit")) return false;
-  if (argv.includes("--audit")) return true;
-  return undefined;
-}
-
-function failOnBuildFromArgv(argv: string[]): boolean | undefined {
-  if (argv.includes("--no-fail-on-build")) return false;
-  if (argv.includes("--fail-on-build")) return true;
-  return undefined;
-}
-
-/** Same path relative to repo root in each worktree (avoids reading the main cwd config file). */
+/**
+ * Maps the resolved config file path from the main repo into another worktree root.
+ *
+ * @param options - `gitRoot`, worktree `checkoutRoot`, and resolved config path from main cwd.
+ * @returns Absolute config path inside the worktree, or `undefined` when unset/outside repo.
+ */
 function configPathInCheckout(options: {
   gitRoot: string;
   checkoutRoot: string;
@@ -77,11 +84,11 @@ function configPathInCheckout(options: {
 }
 
 /**
- * When reusing base's resolved `buildDir` on another checkout (e.g. temp worktree),
- * an absolute path under the base checkout must not be reused as-is or analysis
- * would read the wrong tree. If `resolvedAbs` lies under `originWorktreeCwd`,
- * returns a relative path so `path.resolve(targetWorktreeCwd, rel)` matches the
- * same layout inside the target checkout; otherwise returns the absolute path.
+ * Re-expresses an absolute `buildDir` from one checkout as relative to another when safe.
+ *
+ * @param resolvedAbs - Absolute build directory from the first side.
+ * @param originWorktreeCwd - Worktree cwd used when `resolvedAbs` was produced.
+ * @returns Relative path, `"."`, or the original absolute path when not under `originWorktreeCwd`.
  */
 function buildDirHintRelativeToCheckout(
   resolvedAbs: string,
@@ -97,9 +104,22 @@ function buildDirHintRelativeToCheckout(
 }
 
 /**
- * Value for `resolveConfig(..., { buildDir })` inside a worktree: CLI flag wins,
- * else a path relative to the project config file (or project cwd) derived from
- * the main checkout's resolved `buildDir`, so the worktree resolves the same layout.
+ * @param raw - Absolute or relative path string (trimmed).
+ * @param cwd - Base for relative resolution.
+ * @returns Normalized absolute path.
+ */
+function resolvePathInCwd(raw: string, cwd: string): string {
+  const trimmed = raw.trim();
+  return path.isAbsolute(trimmed)
+    ? path.normalize(trimmed)
+    : path.resolve(cwd, trimmed);
+}
+
+/**
+ * Build directory override string passed into `resolveConfig` inside a worktree.
+ *
+ * @param options - Main project cwd, resolved main config, and optional CLI `buildDir` flag.
+ * @returns Relative `buildDir` override, `undefined` when not derivable safely.
  */
 function buildDirOverrideForWorktreeResolve(options: {
   projectCwdAbs: string;
@@ -122,6 +142,13 @@ function buildDirOverrideForWorktreeResolve(options: {
   return rel.length === 0 ? "." : rel;
 }
 
+/**
+ * Interactive fuzzy picker over Git refs.
+ *
+ * @param message - Inquirer prompt title.
+ * @param choices - Candidate ref names.
+ * @returns Selected ref string.
+ */
 async function pickBranch(
   message: string,
   choices: string[]
@@ -143,6 +170,12 @@ async function pickBranch(
   return String(picked).trim();
 }
 
+/**
+ * Resolves base/head refs from config, flags, and optional interactive prompts.
+ *
+ * @param options - Branch list plus optional config/flag overrides.
+ * @returns Distinct `base` and `head` ref strings.
+ */
 async function resolveRefs(options: {
   cwd: string;
   configBase?: string;
@@ -156,15 +189,13 @@ async function resolveRefs(options: {
   const fromFlagB = options.flagBase?.trim();
   const fromFlagH = options.flagHead?.trim();
 
-  // Priority requested: config -> flags -> interactive prompt.
   let base = fromCfgB || fromFlagB;
   let head = fromCfgH || fromFlagH;
 
-  const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  if (!base && tty) {
+  if (!base && isInteractiveTerminal()) {
     base = await pickBranch("Base branch or ref", options.branches);
   }
-  if (!head && tty) {
+  if (!head && isInteractiveTerminal()) {
     head = await pickBranch("Head branch or ref (changes)", options.branches);
   }
 
@@ -181,13 +212,18 @@ async function resolveRefs(options: {
   return { base, head };
 }
 
+/**
+ * Resolves side config, installs deps if needed, runs build, and analyzes one compare side.
+ *
+ * @param options - Worktree paths, shared hints, audit/fail flags, and status callback.
+ * @returns Report, build failure flag, and resolved build paths/commands for reuse.
+ */
 async function runOneSide(options: {
   label: string;
   worktreeCwd: string;
   checkoutRoot: string;
   gitRoot: string;
   outputScratchDir: string;
-  /** Resolved config from the main project cwd (flags + project config file). */
   config: Awaited<ReturnType<typeof resolveConfig>>;
   projectCwdAbs: string;
   buildDirFlag?: string;
@@ -197,7 +233,6 @@ async function runOneSide(options: {
   sharedBuildCommand?: string;
   sharedBuildDir?: string;
   sharedInstallCommand?: string;
-  /** Pause progress spinner while Inquirer prompts run (stderr must not fight the UI). */
   promptHooks?: ComparePromptHooks;
 }): Promise<{
   report: BundleLensReport;
@@ -243,8 +278,7 @@ async function runOneSide(options: {
 
   let cmd = sideConfig.buildCommand?.trim() || sharedBuildCommand?.trim();
   if (!cmd) {
-    const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-    if (!tty) {
+    if (!isInteractiveTerminal()) {
       throw new Error(
         `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`
       );
@@ -263,14 +297,10 @@ async function runOneSide(options: {
   }
   let buildDirAbs = sideConfig.buildDir;
   if (!buildDirAbs && sharedBuildDir?.trim()) {
-    const raw = sharedBuildDir.trim();
-    buildDirAbs = path.isAbsolute(raw)
-      ? path.normalize(raw)
-      : path.resolve(worktreeCwd, raw);
+    buildDirAbs = resolvePathInCwd(sharedBuildDir, worktreeCwd);
   }
   if (!buildDirAbs) {
-    const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-    if (!tty) {
+    if (!isInteractiveTerminal()) {
       throw new Error(
         `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`
       );
@@ -287,9 +317,7 @@ async function runOneSide(options: {
     } finally {
       promptHooks?.resume();
     }
-    buildDirAbs = path.isAbsolute(rawBuildDir)
-      ? path.normalize(rawBuildDir)
-      : path.resolve(worktreeCwd, rawBuildDir);
+    buildDirAbs = resolvePathInCwd(rawBuildDir, worktreeCwd);
   }
 
   onStatus(`${options.label}: preparing dependencies…`);
@@ -339,6 +367,11 @@ async function runOneSide(options: {
   };
 }
 
+/**
+ * Compares two Git refs via detached worktrees, builds each side, and writes `compare.html`.
+ *
+ * @param options - Project `cwd`, `argv` for flag parsing, and optional CLI overrides.
+ */
 export async function runCompare(options: CompareCliOptions): Promise<void> {
   const { cwd, argv } = options;
   const gitRoot = await getGitRoot(cwd);
@@ -451,7 +484,6 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
       audit: config.audit,
       failOnBuild: config.failOnBuild,
       onStatus: setSpinMsg,
-      // Reuse whatever was effectively used in base to avoid asking twice.
       sharedBuildCommand: baseResolvedCmd,
       sharedBuildDir: buildDirHintRelativeToCheckout(
         baseResolvedBuildDirAbs,
@@ -505,19 +537,14 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
     spin.fail(e instanceof Error ? e.message : "Error while running compare");
     throw e;
   } finally {
-    // Safety net: ensure spinner is cleared even on unexpected flows.
     spin.stop();
     for (const fn of cleanups.reverse()) {
       try {
         await fn();
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }
     try {
       await fs.rm(tmpRoot, { recursive: true, force: true });
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 }

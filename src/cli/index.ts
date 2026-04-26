@@ -1,9 +1,14 @@
 #!/usr/bin/env node
+/**
+ * CLI entrypoint for the `bundlelens` command (`run`, `analyze`, `compare`, `init`).
+ */
 import path from "node:path";
 import process from "node:process";
 import { input } from "@inquirer/prompts";
 import { cac } from "cac";
+import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
 import { resolveConfig } from "../utils/config.js";
+import { isInteractiveTerminal } from "../utils/tty.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { runBuild } from "../core/runBuild.js";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
@@ -14,6 +19,11 @@ import { printTerminalSummary } from "../utils/terminalSummary.js";
 import { runInit } from "./init.js";
 import { runCompare } from "./compare.js";
 
+/**
+ * Prints non-fatal analyzer lines to stderr with a warning prefix.
+ *
+ * @param notices - Human-readable notice strings (empty skips output).
+ */
 function printAnalyzerNotices(notices: string[]): void {
   if (notices.length === 0) return;
   const warningIcon = process.stderr.isTTY ? "\x1b[33m⚠\x1b[0m" : "⚠";
@@ -25,34 +35,17 @@ function printAnalyzerNotices(notices: string[]): void {
   console.warn("");
 }
 
-function auditFromArgv(argv: string[]): boolean | undefined {
-  const no = argv.includes("--no-audit");
-  const yes = argv.includes("--audit");
-  if (no) {
-    return false;
-  }
-  if (yes) {
-    return true;
-  }
-  return undefined;
-}
-
-function failOnBuildFromArgv(argv: string[]): boolean | undefined {
-  if (argv.includes("--no-fail-on-build")) {
-    return false;
-  }
-  if (argv.includes("--fail-on-build")) {
-    return true;
-  }
-  return undefined;
-}
-
+/**
+ * Prompts for a non-empty string; throws `validateMessage` when not interactive.
+ *
+ * @param options - Inquirer message and validation error text.
+ * @returns Trimmed non-empty string from the user.
+ */
 async function promptRequiredValue(options: {
   message: string;
   validateMessage: string;
 }): Promise<string> {
-  const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  if (!tty) {
+  if (!isInteractiveTerminal()) {
     throw new Error(options.validateMessage);
   }
   return (

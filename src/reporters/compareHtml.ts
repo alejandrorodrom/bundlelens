@@ -5,6 +5,12 @@ import { readBundleLensVersion } from "../utils/version.js";
 import { APP_CSS } from "./static/appCss.js";
 import { APP_JS } from "./static/appJs.js";
 
+/**
+ * Escapes characters that would break an inline `<script type="application/json">` payload.
+ *
+ * @param json - Serialized JSON text.
+ * @returns Safe string for embedding in HTML.
+ */
 function escapeJsonForScript(json: string): string {
   return json
     .replace(/</g, "\\u003c")
@@ -12,6 +18,12 @@ function escapeJsonForScript(json: string): string {
     .replace(/&/g, "\\u0026");
 }
 
+/**
+ * HTML document shell for the compare view (embeds report JSON and loads `app.js`).
+ *
+ * @param escapedJson - JSON text already passed through `escapeJsonForScript`.
+ * @returns Full HTML string.
+ */
 function compareHtmlShell(escapedJson: string): string {
   return `<!DOCTYPE html>
 <html lang="en" data-bundlelens-view="compare">
@@ -51,6 +63,13 @@ function compareHtmlShell(escapedJson: string): string {
 </html>`;
 }
 
+/**
+ * Writes `compare.html`, `compare-report.json`, and shared static assets for branch compare.
+ *
+ * @param payload - Base/head reports and ref metadata.
+ * @param outputDirAbs - Directory that will contain `compare.html`, JSON, and `assets/`.
+ * @returns Paths to the written HTML and JSON files.
+ */
 export async function writeCompareHtmlReport(
   payload: BundleLensCompareReport,
   outputDirAbs: string

@@ -6,12 +6,20 @@ import type {
   ResolvedThresholds,
 } from "../types/config.js";
 
+/** Default config file name in the project root. */
 export const BUNDLELENS_CONFIG_FILENAME = "bundlelens.config.json";
 
 const DEFAULT_CONFIG_NAMES = [BUNDLELENS_CONFIG_FILENAME];
 
 const defaultCompression = { gzip: true, brotli: true };
 
+/**
+ * Resolves an explicit path or discovers `bundlelens.config.json` under `cwd`.
+ *
+ * @param cwd - Project directory used for relative resolution.
+ * @param explicitPath - Optional user-provided config path (relative to `cwd` or absolute).
+ * @returns Absolute config path when found, otherwise `undefined`.
+ */
 export async function findConfigFile(
   cwd: string,
   explicitPath?: string
@@ -30,19 +38,29 @@ export async function findConfigFile(
     try {
       await fs.access(p);
       return p;
-    } catch {
-      /* continue */
-    }
+    } catch {}
   }
   return undefined;
 }
 
+/**
+ * @param filePath - Absolute path to JSON config on disk.
+ * @returns Parsed `BundleLensConfig` object.
+ */
 async function readJsonConfig(filePath: string): Promise<BundleLensConfig> {
   const raw = await fs.readFile(filePath, "utf8");
   return JSON.parse(raw) as BundleLensConfig;
 }
 
-/** Ruta absoluta al directorio de build, o undefined si no se definió. */
+/**
+ * Resolves `buildDir` from CLI override vs file config with correct anchor directory.
+ *
+ * @param cwd - Project cwd.
+ * @param configPath - Absolute config file path, when any.
+ * @param primary - CLI override for `buildDir` (wins when set).
+ * @param fallback - File-config `buildDir` when no CLI override.
+ * @returns Absolute build directory, or `undefined`.
+ */
 function resolveBuildDirAbs(
   cwd: string,
   configPath: string | undefined,
@@ -66,16 +84,23 @@ function resolveBuildDirAbs(
   return path.resolve(cwd, trimmedFile);
 }
 
+/** CLI flags and paths merged over optional file-based `BundleLensConfig`. */
 export type CliOverrides = {
   buildCommand?: string;
   buildDir?: string;
   outputDir?: string;
   audit?: boolean;
-  /** Si se define, sustituye `failOnBuild` del archivo de configuración. */
   failOnBuild?: boolean;
   configPath?: string;
 };
 
+/**
+ * Loads `bundlelens.config.json` (if any) and merges CLI overrides into a resolved shape.
+ *
+ * @param cwd - Project directory for resolving relative paths.
+ * @param overrides - CLI-provided fields that override file config.
+ * @returns Fully merged `ResolvedConfig`.
+ */
 export async function resolveConfig(
   cwd: string,
   overrides: CliOverrides

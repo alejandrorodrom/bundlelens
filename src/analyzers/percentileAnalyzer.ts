@@ -6,6 +6,13 @@ import type {
 } from "../types/report.js";
 import { filesInDistributionSlice } from "./distributionAnalyzer.js";
 
+/**
+ * Nearest-rank percentile on a pre-sorted ascending array.
+ *
+ * @param sortedAsc - Byte sizes sorted ascending.
+ * @param p - Percentile in `[0, 100]`.
+ * @returns Estimated percentile value (0 when empty).
+ */
 function percentile(sortedAsc: number[], p: number): number {
   const n = sortedAsc.length;
   if (n === 0) return 0;
@@ -14,6 +21,10 @@ function percentile(sortedAsc: number[], p: number): number {
   return sortedAsc[idx]!;
 }
 
+/**
+ * @param bytes - Raw byte sizes (any order).
+ * @returns p50–p99 tuple for that sample.
+ */
 function buildSet(bytes: number[]): PercentileSet {
   if (bytes.length === 0) {
     return { p50: 0, p75: 0, p90: 0, p95: 0, p99: 0 };
@@ -28,10 +39,20 @@ function buildSet(bytes: number[]): PercentileSet {
   };
 }
 
+/**
+ * @param files - Indexed files in a slice.
+ * @returns Their raw byte sizes.
+ */
 function rawBytesList(files: FileEntry[]): number[] {
   return files.map((f) => f.rawBytes);
 }
 
+/**
+ * Raw-byte percentiles (p50–p99) per distribution slice.
+ *
+ * @param files - Indexed build artifacts.
+ * @returns Percentile sets keyed like `Distributions`.
+ */
 export function buildPercentiles(files: FileEntry[]): Percentiles {
   const keys: (keyof Distributions)[] = [
     "all",

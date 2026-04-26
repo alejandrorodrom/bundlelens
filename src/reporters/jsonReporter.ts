@@ -2,6 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { BundleLensReport } from "../types/report.js";
 
+/**
+ * Writes `report.json` (pretty-printed) next to HTML assets.
+ *
+ * @param report - Full `BundleLensReport` object.
+ * @param outputDirAbs - Report output root.
+ * @returns Absolute path to `report.json`.
+ */
 export async function writeJsonReport(
   report: BundleLensReport,
   outputDirAbs: string
