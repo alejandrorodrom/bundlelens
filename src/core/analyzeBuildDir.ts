@@ -143,13 +143,7 @@ export async function analyzeBuildDir(
 
   const analysisStartedAt = Date.now();
 
-  let files: FileEntry[] = [];
-  let diagnostics: CollectFilesDiagnostics = {
-    discoveredFiles: 0,
-    indexedFiles: 0,
-    skippedReadFiles: 0,
-    skippedReadSamples: [],
-  };
+  let files: FileEntry[];
   const analysisNotices: string[] = [];
   onStatus?.("Checking build output directory…");
   try {
@@ -160,7 +154,7 @@ export async function analyzeBuildDir(
       attachCollectFilesProgress(onStatus)
     );
     files = result.entries;
-    diagnostics = result.diagnostics;
+    const diagnostics: CollectFilesDiagnostics = result.diagnostics;
     const hasReadIssues = diagnostics.skippedReadFiles > 0;
     if (hasReadIssues) {
       analysisNotices.push(

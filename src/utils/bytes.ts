@@ -1,3 +1,5 @@
+import type { SizeBucket } from "../types/report.js";
+
 const KB = 1024;
 
 /**
@@ -24,7 +26,7 @@ export function formatBytes(n: number): string {
  * @param rawBytes - File size in bytes.
  * @returns Discrete bucket label.
  */
-export function bucketForRawBytes(rawBytes: number): import("../types/report.js").SizeBucket {
+export function bucketForRawBytes(rawBytes: number): SizeBucket {
   const b = rawBytes;
   const k10 = 10 * KB;
   const k50 = 50 * KB;

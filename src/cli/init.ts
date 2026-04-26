@@ -42,14 +42,15 @@ async function detectBuildDir(cwd: string): Promise<string> {
  * @returns Example shell command (prefers the package manager implied by lockfiles when `build` exists).
  */
 async function detectBuildCommandExample(cwd: string): Promise<string> {
-  let hasBuildScript = false;
-  try {
-    const raw = await fs.readFile(path.join(cwd, "package.json"), "utf8");
-    const pkg = JSON.parse(raw) as { scripts?: Record<string, string> };
-    hasBuildScript = Boolean(pkg.scripts?.build?.trim());
-  } catch {
-    return "npm run build";
-  }
+  const hasBuildScript: boolean = await (async () => {
+    try {
+      const raw = await fs.readFile(path.join(cwd, "package.json"), "utf8");
+      const pkg = JSON.parse(raw) as { scripts?: Record<string, string> };
+      return Boolean(pkg.scripts?.build?.trim());
+    } catch {
+      return false;
+    }
+  })();
   if (!hasBuildScript) {
     return "npm run build";
   }
