@@ -1,6 +1,6 @@
 {
   "name": "bundlelens",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Framework-agnostic tool to measure and visualize objective JavaScript/TypeScript build data",
   "type": "module",
   "bin": {
