@@ -1,7 +1,7 @@
 {
   "name": "bundlelens",
-  "version": "0.1.0",
-  "description": "Herramienta agnóstica para medir y visualizar datos objetivos de builds JavaScript/TypeScript",
+  "version": "1.0.0",
+  "description": "Framework-agnostic tool to measure and visualize objective JavaScript/TypeScript build data",
   "type": "module",
   "bin": {
     "bundlelens": "dist/cli/index.js"
