@@ -22,6 +22,7 @@
   "homepage": "https://github.com/alejandrorodrom/bundlelens#readme",
   "files": [
     "dist",
+    "docs/bundlelens-logo.png",
     "bundlelens.schema.json",
     "README.md",
     "LICENSE"
