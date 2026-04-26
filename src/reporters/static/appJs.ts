@@ -112,9 +112,9 @@ export const APP_JS = `
     ]);
   }
 
+  var SEVERITY_ORDER = ["critical", "high", "moderate", "low", "info", "unknown"];
   function severityOrderIndex(k) {
-    var order = ["critical", "high", "moderate", "low", "info", "unknown"];
-    var i = order.indexOf(String(k || "").toLowerCase());
+    var i = SEVERITY_ORDER.indexOf(String(k || "").toLowerCase());
     return i === -1 ? 999 : i;
   }
 
@@ -633,7 +633,7 @@ export const APP_JS = `
     );
     var filesWrap = el("div", { className: "table-scroll" }, [filesTable]);
     return section("Files", filesWrap, {
-      id: "archivos",
+      id: "files",
       lead: "Complete list (" + files.length + " files). Scroll horizontally if needed.",
       leadClassName: "no-print"
     });
@@ -646,7 +646,7 @@ export const APP_JS = `
       el("a", { className: "files-stub-btn", href: "./files.html", text: "Open full file list →" })
     ]);
     return section("Files", box, {
-      id: "archivos",
+      id: "files",
       className: "no-print",
       lead: "Executive view with a link to file-level details."
     });
@@ -1009,8 +1009,8 @@ export const APP_JS = `
     ]);
     var tocLinks = [
       ["cmp-overview", "Overview"],
-      ["cmp-resumen", "Summary"],
-      ["cmp-tipos", "By type"],
+      ["cmp-summary", "Summary"],
+      ["cmp-types", "By type"],
       ["cmp-percentiles", "Percentiles"]
     ];
     var ab = base.audit;
@@ -1081,7 +1081,7 @@ export const APP_JS = `
       ]);
     }
     root.appendChild(section("Summary", cmpMetricTable(resRows), {
-      id: "cmp-resumen",
+      id: "cmp-summary",
       className: "compare-section-panel",
       lead: "Executive comparison across size, composition, build, audit, and key derived indicators."
     }));
@@ -1128,7 +1128,7 @@ export const APP_JS = `
       ])
     ]);
     root.appendChild(section("By file type", typeTable, {
-      id: "cmp-tipos",
+      id: "cmp-types",
       className: "compare-section-panel",
       lead: "Counts and raw bytes per category."
     }));
@@ -1275,20 +1275,20 @@ export const APP_JS = `
   var sum = report.summary || {};
   var build = report.build;
 
-  var tocLinks = [["resumen", "Overview"]];
+  var tocLinks = [["overview", "Overview"]];
   if (report.insights) tocLinks.push(["insights", "Insights"]);
   if (build) tocLinks.push(["build", "Build"]);
-  if (sum.byType && sum.byType.length) tocLinks.push(["composicion", "Composition"]);
-  if (report.files && report.files.length) tocLinks.push(["archivos", "Files"]);
+  if (sum.byType && sum.byType.length) tocLinks.push(["composition", "Composition"]);
+  if (report.files && report.files.length) tocLinks.push(["files", "Files"]);
   tocLinks.push(["rankings", "Rankings"]);
   var dist = report.distributions || {};
-  if (Object.keys(dist).length) tocLinks.push(["distribuciones", "Distributions"]);
+  if (Object.keys(dist).length) tocLinks.push(["distributions", "Distributions"]);
   var pc = report.percentiles || {};
   if (Object.keys(pc).length) tocLinks.push(["percentiles", "Percentiles"]);
   var sm = (report.files || []).filter(function (f) { return f.isSourceMap || f.type === "sourcemap"; });
   if (sm.length) tocLinks.push(["sourcemaps", "Source maps"]);
-  if (report.audit) tocLinks.push(["vulnerabilidades", "Vulnerabilities"]);
-  if (report.thresholds && report.thresholds.length) tocLinks.push(["umbrales", "Thresholds"]);
+  if (report.audit) tocLinks.push(["vulnerabilities", "Vulnerabilities"]);
+  if (report.thresholds && report.thresholds.length) tocLinks.push(["thresholds", "Thresholds"]);
   tocLinks.push(["json", "Raw JSON"]);
   root.appendChild(buildToc(tocLinks));
 
@@ -1309,7 +1309,7 @@ export const APP_JS = `
   root.appendChild(el("div", { className: "report-generated-bar" }, genBarKids));
 
   root.appendChild(section("Overview", buildSummaryBody(m, sum, report.audit), {
-    id: "resumen",
+    id: "overview",
     className: "summary-panel",
     lead: "Aggregated metrics, paths, and dependency audit (when available)."
   }));
@@ -1344,7 +1344,7 @@ export const APP_JS = `
     );
     var compWrap = el("div", { className: "table-scroll" }, [compTable]);
     root.appendChild(section("Composition by file type", compWrap, {
-      id: "composicion",
+      id: "composition",
       lead: "How total size is distributed across file types in the output directory."
     }));
   }
@@ -1364,7 +1364,7 @@ export const APP_JS = `
       return { label: distLabel(dk), content: tbl };
     });
     root.appendChild(section("Size distributions (raw bytes)", tabGroup("dist", distItems), {
-      id: "distribuciones",
+      id: "distributions",
       lead: "Number of files in each size bucket, grouped by content type."
     }));
   }
@@ -1402,7 +1402,7 @@ export const APP_JS = `
     var aw = el("div", null, []);
     aw.appendChild(buildVulnerabilitiesSectionBody(a));
     root.appendChild(section("Vulnerabilities", aw, {
-      id: "vulnerabilidades",
+      id: "vulnerabilities",
       lead: "Dependency risk summary from vulnerability scanning, when available."
     }));
   }
@@ -1410,7 +1410,7 @@ export const APP_JS = `
   if (report.thresholds && report.thresholds.length) {
     var thWrap = el("div", { className: "table-scroll" }, [thresholdsTable(report.thresholds)]);
     root.appendChild(section("Thresholds", thWrap, {
-      id: "umbrales",
+      id: "thresholds",
       lead: "Comparison against limits configured for this analysis."
     }));
   }

@@ -50,7 +50,8 @@ type StagedFile = {
   isSourceMap: boolean;
   relatedSourceMap: string | null;
   relatedFile: string | null;
-  absPath: string;
+  gzipBytes: number | null;
+  brotliBytes: number | null;
 };
 
 /**
@@ -58,11 +59,13 @@ type StagedFile = {
  *
  * @param buildDirAbs - Root of the build output tree.
  * @param abs - Absolute path to the file on disk.
+ * @param compression - When gzip/brotli are enabled, sizes are measured from the same read buffer.
  * @returns Staged metadata, a read failure marker, or `null` when outside the tree.
  */
 async function indexOneFile(
   buildDirAbs: string,
-  abs: string
+  abs: string,
+  compression: ResolvedCompression
 ): Promise<StagedFile | { failed: true; rel: string; code: string } | null> {
   const rel = path.relative(buildDirAbs, abs).split(path.sep).join("/");
   if (rel === "" || rel.startsWith("..")) return null;
@@ -78,6 +81,14 @@ async function indexOneFile(
     return { failed: true, rel, code: errnoCode(e) };
   }
   const rawBytes = buf.length;
+  const needCompress = Boolean(compression.gzip || compression.brotli);
+  let gzipBytes: number | null = null;
+  let brotliBytes: number | null = null;
+  if (needCompress) {
+    const m = measureCompression(buf, compression);
+    gzipBytes = m.gzipBytes;
+    brotliBytes = m.brotliBytes;
+  }
 
   let relMap = relatedPathsForFile(rel, type, isSourceMap);
   if (relMap.relatedSourceMap) {
@@ -106,7 +117,8 @@ async function indexOneFile(
     isSourceMap,
     relatedSourceMap: relMap.relatedSourceMap,
     relatedFile: relMap.relatedFile,
-    absPath: abs,
+    gzipBytes,
+    brotliBytes,
   };
 }
 
@@ -136,9 +148,7 @@ export async function collectFiles(
   onProgress?.({ phase: "discover", stage: "done", pathCount: paths.length });
 
   let skippedReadFiles = 0;
-  let compressionReadErrors = 0;
   const skippedReadSamples: Array<{ path: string; code: string }> = [];
-  const compressionReadSamples: Array<{ path: string; code: string }> = [];
 
   if (paths.length === 0) {
     return {
@@ -154,86 +164,35 @@ export async function collectFiles(
     };
   }
 
-  const staged: StagedFile[] = [];
+  const entries: FileEntry[] = [];
+  const needCompress = Boolean(compression.gzip || compression.brotli);
   const total = paths.length;
   for (let i = 0; i < paths.length; i++) {
     const abs = paths[i]!;
-    const row = await indexOneFile(buildDirAbs, abs);
+    const row = await indexOneFile(buildDirAbs, abs, compression);
     if (row && "failed" in row) {
       skippedReadFiles += 1;
       if (skippedReadSamples.length < 5) {
         skippedReadSamples.push({ path: row.rel, code: row.code });
       }
     } else if (row) {
-      staged.push(row);
-    }
-    onProgress?.({ phase: "index", current: i + 1, total });
-  }
-
-  const needCompress = Boolean(compression.gzip || compression.brotli);
-  const entries: FileEntry[] = [];
-
-  if (!needCompress) {
-    for (const s of staged) {
       entries.push({
-        path: s.path,
-        extension: s.extension,
-        type: s.type,
-        rawBytes: s.rawBytes,
-        gzipBytes: null,
-        brotliBytes: null,
-        nameHash: s.nameHash,
-        isSourceMap: s.isSourceMap,
-        relatedSourceMap: s.relatedSourceMap,
-        relatedFile: s.relatedFile,
+        path: row.path,
+        extension: row.extension,
+        type: row.type,
+        rawBytes: row.rawBytes,
+        gzipBytes: row.gzipBytes,
+        brotliBytes: row.brotliBytes,
+        nameHash: row.nameHash,
+        isSourceMap: row.isSourceMap,
+        relatedSourceMap: row.relatedSourceMap,
+        relatedFile: row.relatedFile,
       });
     }
-    entries.sort((a, b) => a.path.localeCompare(b.path));
-    return {
-      entries,
-      diagnostics: {
-        discoveredFiles: paths.length,
-        indexedFiles: entries.length,
-        skippedReadFiles,
-        compressionReadErrors: 0,
-        skippedReadSamples,
-        compressionReadSamples: [],
-      },
-    };
-  }
-
-  const cTotal = staged.length;
-  for (let j = 0; j < staged.length; j++) {
-    const s = staged[j]!;
-    let gzipBytes: number | null = null;
-    let brotliBytes: number | null = null;
-    try {
-      const buf = await fs.readFile(s.absPath);
-      const m = measureCompression(buf, compression);
-      gzipBytes = m.gzipBytes;
-      brotliBytes = m.brotliBytes;
-    } catch (e) {
-      compressionReadErrors += 1;
-      if (compressionReadSamples.length < 5) {
-        compressionReadSamples.push({ path: s.path, code: errnoCode(e) });
-      }
-      gzipBytes = null;
-      brotliBytes = null;
+    onProgress?.({ phase: "index", current: i + 1, total });
+    if (needCompress) {
+      onProgress?.({ phase: "compress", current: i + 1, total });
     }
-
-    entries.push({
-      path: s.path,
-      extension: s.extension,
-      type: s.type,
-      rawBytes: s.rawBytes,
-      gzipBytes,
-      brotliBytes,
-      nameHash: s.nameHash,
-      isSourceMap: s.isSourceMap,
-      relatedSourceMap: s.relatedSourceMap,
-      relatedFile: s.relatedFile,
-    });
-    onProgress?.({ phase: "compress", current: j + 1, total: cTotal });
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
@@ -243,9 +202,9 @@ export async function collectFiles(
       discoveredFiles: paths.length,
       indexedFiles: entries.length,
       skippedReadFiles,
-      compressionReadErrors,
+      compressionReadErrors: 0,
       skippedReadSamples,
-      compressionReadSamples,
+      compressionReadSamples: [],
     },
   };
 }

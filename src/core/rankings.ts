@@ -7,7 +7,8 @@ import type { FileEntry, RankingItem, Rankings } from "../types/report.js";
 function sortByBytes(
   items: { path: string; bytes: number }[]
 ): RankingItem[] {
-  return [...items].sort((a, b) => b.bytes - a.bytes);
+  items.sort((a, b) => b.bytes - a.bytes);
+  return items as RankingItem[];
 }
 
 const ASSET_TYPES = new Set<string>([
