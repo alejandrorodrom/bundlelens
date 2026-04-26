@@ -67,6 +67,46 @@ const OTHER_DIST_TYPES = new Set<FileCategory>([
   "other",
 ]);
 
+/** Raw byte sizes per histogram slice (same membership as {@link filesInDistributionSlice}). */
+export type RawBytesByDistributionSlice = {
+  [K in keyof Distributions]: number[];
+};
+
+/**
+ * Collects `rawBytes` per distribution slice in one pass (for percentiles and similar stats).
+ */
+export function collectRawBytesByDistributionSlice(
+  files: FileEntry[]
+): RawBytesByDistributionSlice {
+  const all: number[] = [];
+  const javascript: number[] = [];
+  const css: number[] = [];
+  const image: number[] = [];
+  const font: number[] = [];
+  const sourcemap: number[] = [];
+  const other: number[] = [];
+
+  for (const f of files) {
+    const b = f.rawBytes;
+    all.push(b);
+    if (f.type === "javascript") {
+      javascript.push(b);
+    } else if (f.type === "css") {
+      css.push(b);
+    } else if (f.type === "image") {
+      image.push(b);
+    } else if (f.type === "font") {
+      font.push(b);
+    } else if (f.type === "sourcemap") {
+      sourcemap.push(b);
+    } else if (OTHER_DIST_TYPES.has(f.type)) {
+      other.push(b);
+    }
+  }
+
+  return { all, javascript, css, image, font, sourcemap, other };
+}
+
 /**
  * Histograms of file counts by raw-size bucket, overall and per category.
  *

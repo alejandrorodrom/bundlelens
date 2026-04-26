@@ -83,15 +83,19 @@ cli
   .option("--head <ref>", "Git head branch or ref (changes)")
   .option(
     "--build-command <cmd>",
-    "Build command to use for both sides in compare (fallback when branch config is missing)"
+    "Build command override (merged after config file on each side, like bundlelens run)"
   )
   .option(
     "--build-dir <dir>",
-    "Build output directory to use for both sides in compare (fallback when branch config is missing)"
+    "Build output directory override (merged after config file on each side, like bundlelens run)"
+  )
+  .option(
+    "--install-command <cmd>",
+    "Dependency install when node_modules is missing (after install in config; before interactive prompt)"
   )
   .option(
     "--output <dir>",
-    "Compare report output directory (default: <outputDir>/compare from config)"
+    "Report root override (merged after outputDir in config; compare.html under <resolved>/compare/)"
   )
   .option("--config <file>", "Path to bundlelens.config.json")
   .option("--audit", "Run npm audit (default from config)")
@@ -115,6 +119,7 @@ cli
         headFlag: options.head as string | undefined,
         buildCommandFlag: options.buildCommand as string | undefined,
         buildDirFlag: options.buildDir as string | undefined,
+        installCommandFlag: options.installCommand as string | undefined,
         outputFlag: options.output as string | undefined,
         configFlag: options.config as string | undefined,
         audit: auditFromArgv(argv),

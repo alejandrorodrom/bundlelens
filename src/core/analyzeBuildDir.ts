@@ -19,9 +19,9 @@ import { findPackageJsonDir } from "../utils/dependencies.js";
 import { nodeErrnoCode } from "../utils/nodeErrno.js";
 
 /**
- * Options for {@link analyzeBuildDir}. When `config.audit` is true, `npm audit` runs under
- * `npmAuditCwd` (or `process.cwd()`); with `npmAuditCeiling`, the cwd is resolved upward
- * to the nearest `package.json` up to that directory (Git worktrees).
+ * Options for {@link analyzeBuildDir}. When `config.audit` is true, dependency vulnerability
+ * analysis runs under `npmAuditCwd` (or `process.cwd()`); with `npmAuditCeiling`, the cwd is
+ * resolved upward to the nearest `package.json` up to that directory (Git worktrees).
  */
 export type AnalyzeOptions = {
   mode: "run" | "analyze";
@@ -125,7 +125,7 @@ function attachCollectFilesProgress(
 }
 
 /**
- * Indexes `buildDirAbs`, runs optional npm audit, and builds summaries/rankings/insights.
+ * Indexes `buildDirAbs`, optionally runs dependency vulnerability analysis, and builds summaries/rankings/insights.
  *
  * @param options - Paths, resolved config, optional build record, and status hook.
  * @returns Complete `BundleLensReport` (files may be empty on access errors).
@@ -231,7 +231,7 @@ export async function analyzeBuildDir(
 
   let audit: BundleLensReport["audit"] = null;
   if (config.audit) {
-    onStatus?.("Running npm audit (may take a moment)…");
+    onStatus?.("Analyzing…");
     audit = await collectNpmAudit(npmAuditDir);
   }
 

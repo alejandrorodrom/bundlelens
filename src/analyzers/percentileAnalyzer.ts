@@ -1,7 +1,7 @@
 import type { FileEntry, PercentileSet, Percentiles } from "../types/report.js";
 import {
+  collectRawBytesByDistributionSlice,
   DISTRIBUTION_SLICE_KEYS,
-  filesInDistributionSlice,
 } from "./distributionAnalyzer.js";
 
 /**
@@ -38,24 +38,16 @@ function buildSet(bytes: number[]): PercentileSet {
 }
 
 /**
- * @param files - Indexed files in a slice.
- * @returns Their raw byte sizes.
- */
-function rawBytesList(files: FileEntry[]): number[] {
-  return files.map((f) => f.rawBytes);
-}
-
-/**
  * Raw-byte percentiles (p50–p99) per distribution slice.
  *
  * @param files - Indexed build artifacts.
  * @returns Percentile sets keyed like `Distributions`.
  */
 export function buildPercentiles(files: FileEntry[]): Percentiles {
+  const bySlice = collectRawBytesByDistributionSlice(files);
   const out = {} as Percentiles;
   for (const k of DISTRIBUTION_SLICE_KEYS) {
-    const slice = filesInDistributionSlice(files, k);
-    out[k] = buildSet(rawBytesList(slice));
+    out[k] = buildSet(bySlice[k]);
   }
   return out;
 }

@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import fg from "fast-glob";
 import type { FileEntry } from "../types/report.js";
@@ -40,6 +41,23 @@ type StagedFile = {
   gzipBytes: number | null;
   brotliBytes: number | null;
 };
+
+type IndexOutcome =
+  | StagedFile
+  | { failed: true; rel: string; code: string }
+  | null;
+
+/**
+ * Parallel `readFile` workers: bounded by RAM (few large buffers at once) and disk throughput.
+ * Clamped to [8, 32] as a practical default for huge `dist/` trees.
+ */
+function indexingConcurrency(): number {
+  const logical =
+    typeof os.availableParallelism === "function"
+      ? os.availableParallelism()
+      : Math.max(1, os.cpus().length);
+  return Math.min(32, Math.max(8, logical));
+}
 
 /**
  * Reads and classifies a single absolute file under the build directory.
@@ -114,7 +132,9 @@ async function indexOneFile(
  *
  * @param buildDirAbs - Absolute build output directory.
  * @param compression - Which compressed sizes to compute per file.
- * @param onProgress - Optional coarse-grained progress callback.
+ * @param onProgress - Optional progress callback. During index/compress, `current` is the number of
+ *   files **finished** so far (monotonic); completion order may differ from listing order when
+ *   multiple files are read in parallel.
  * @returns File entries plus diagnostics for skipped reads / compression errors.
  */
 export async function collectFiles(
@@ -159,23 +179,36 @@ export async function collectFiles(
     if (needCompress) onProgress?.({ phase: "compress", current, total });
   };
 
+  const outcomes: IndexOutcome[] = new Array(paths.length);
+  let nextSlot = 0;
+  let finished = 0;
+
+  const runWorker = async (): Promise<void> => {
+    for (;;) {
+      const i = nextSlot++;
+      if (i >= paths.length) return;
+      const abs = paths[i]!;
+      outcomes[i] = await indexOneFile(buildDirAbs, abs, compression);
+      finished += 1;
+      emitProgress(finished);
+    }
+  };
+
+  const workers = Math.min(indexingConcurrency(), paths.length);
+  await Promise.all(Array.from({ length: workers }, () => runWorker()));
+
   for (let i = 0; i < paths.length; i++) {
-    const abs = paths[i]!;
-    const row = await indexOneFile(buildDirAbs, abs, compression);
+    const row = outcomes[i]!;
     if (!row) {
-      emitProgress(i + 1);
       continue;
     }
-
     if ("failed" in row) {
       skippedReadFiles += 1;
       if (skippedReadSamples.length < 5) {
         skippedReadSamples.push({ path: row.rel, code: row.code });
       }
-      emitProgress(i + 1);
       continue;
     }
-
     entries.push({
       path: row.path,
       extension: row.extension,
@@ -188,7 +221,6 @@ export async function collectFiles(
       relatedSourceMap: row.relatedSourceMap,
       relatedFile: row.relatedFile,
     });
-    emitProgress(i + 1);
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));

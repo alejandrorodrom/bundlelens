@@ -64,40 +64,50 @@ async function detectInstallCandidates(cwd: string): Promise<InstallCandidate[] 
   const hasPkg = await pathExists(path.join(cwd, "package.json"));
   if (!hasPkg) return null;
 
+  const j = (...parts: string[]) => path.join(cwd, ...parts);
+  const [hasPnpmLock, hasYarnLock, hasBunLockb, hasBunLock, hasNpmLock] =
+    await Promise.all([
+      pathExists(j("pnpm-lock.yaml")),
+      pathExists(j("yarn.lock")),
+      pathExists(j("bun.lockb")),
+      pathExists(j("bun.lock")),
+      pathExists(j("package-lock.json")),
+    ]);
+
   const candidates: InstallCandidate[] = [];
 
-  if (await pathExists(path.join(cwd, "pnpm-lock.yaml"))) {
+  if (hasPnpmLock) {
     candidates.push({
       manager: "pnpm",
       lockfile: "pnpm-lock.yaml",
       command: "pnpm install --frozen-lockfile",
     });
   }
-  if (await pathExists(path.join(cwd, "yarn.lock"))) {
+  if (hasYarnLock) {
     candidates.push({
       manager: "yarn",
       lockfile: "yarn.lock",
       command: "yarn install --immutable",
     });
   }
-  if (await pathExists(path.join(cwd, "bun.lockb"))) {
+  if (hasBunLockb) {
     candidates.push({
       manager: "bun",
       lockfile: "bun.lockb",
       command: "bun install --frozen-lockfile",
     });
-  } else if (await pathExists(path.join(cwd, "bun.lock"))) {
+  } else if (hasBunLock) {
     candidates.push({
       manager: "bun",
       lockfile: "bun.lock",
       command: "bun install --frozen-lockfile",
     });
   }
-  if (await pathExists(path.join(cwd, "package-lock.json"))) {
+  if (hasNpmLock) {
     candidates.push({
       manager: "npm",
       lockfile: "package-lock.json",
-      command: "npm ci",
+      command: "npm install",
     });
   }
 

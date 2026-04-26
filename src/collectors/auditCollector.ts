@@ -25,15 +25,20 @@ async function resolveAuditMode(cwd: string): Promise<AuditMode> {
     return "pnpm";
   }
   if (await pathExists(p("yarn.lock"))) {
-    if (
-      (await pathExists(p(".yarnrc.yml"))) ||
-      (await pathExists(p(".yarn", "releases")))
-    ) {
+    const [hasBerryRc, hasBerryReleases] = await Promise.all([
+      pathExists(p(".yarnrc.yml")),
+      pathExists(p(".yarn", "releases")),
+    ]);
+    if (hasBerryRc || hasBerryReleases) {
       return "yarn-npm";
     }
     return "yarn-classic";
   }
-  if ((await pathExists(p("bun.lockb"))) || (await pathExists(p("bun.lock")))) {
+  const [hasBunLockb, hasBunLock] = await Promise.all([
+    pathExists(p("bun.lockb")),
+    pathExists(p("bun.lock")),
+  ]);
+  if (hasBunLockb || hasBunLock) {
     return "bun";
   }
   return "npm";
@@ -221,16 +226,19 @@ function countByDirectness(vulnerabilities: AuditVulnerability[]): {
  * @returns Whether a quick DNS lookup to `registry.npmjs.org` succeeds.
  */
 async function hasInternetConnectivity(): Promise<boolean> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
       dns.lookup("registry.npmjs.org"),
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("timeout")), 1500);
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("timeout")), 1500);
       }),
     ]);
     return true;
   } catch {
     return false;
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
 }
 

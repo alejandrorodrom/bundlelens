@@ -145,7 +145,7 @@ function buildInitConfig(
     outputDir,
     audit: true,
     install: {
-      command: "npm ci",
+      command: "npm install",
     },
     compression: {
       gzip: true,

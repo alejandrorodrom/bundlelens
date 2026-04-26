@@ -10,6 +10,7 @@ import type { BundleLensCompareReport, BundleLensReport } from "../types/report.
 import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
 import { resolveConfig } from "../utils/config.js";
 import { ensureDependenciesIfNeeded } from "../utils/dependencies.js";
+import { ensureNpmrcPackageLockTrue } from "../utils/npmrcPackageLock.js";
 import {
   getGitRoot,
   listGitRefsForSearch,
@@ -29,6 +30,8 @@ export type CompareCliOptions = {
   headFlag?: string;
   buildCommandFlag?: string;
   buildDirFlag?: string;
+  /** Overrides `install.command` from config when set (both compare sides). */
+  installCommandFlag?: string;
   outputFlag?: string;
   configFlag?: string;
   audit?: boolean;
@@ -70,50 +73,35 @@ function configPathInCheckout(options: {
 }
 
 /**
- * Re-expresses an absolute `buildDir` from one checkout as relative to another when safe.
+ * Git worktrees only contain **tracked** files. `bundlelens.config.json` is often untracked
+ * or not yet pushed, so the path mapped into the checkout may not exist. In that case we
+ * fall back to the config file from the main working tree so `buildCommand` / `buildDir`
+ * / `install` still load without spurious prompts.
  *
- * @param resolvedAbs - Absolute build directory from the first side.
- * @param originWorktreeCwd - Worktree cwd used when `resolvedAbs` was produced.
- * @returns Relative path, `"."`, or the original absolute path when not under `originWorktreeCwd`.
+ * @param options - Worktree cwd, path under checkout, and resolved config path from `cwd`.
+ * @returns Absolute path to an existing JSON file, or `undefined` to let `resolveConfig` discover.
  */
-function buildDirHintRelativeToCheckout(
-  resolvedAbs: string,
-  originWorktreeCwd: string
-): string {
-  const abs = path.normalize(path.resolve(resolvedAbs));
-  const origin = path.normalize(path.resolve(originWorktreeCwd));
-  const rel = path.relative(origin, abs);
-  if (!rel.startsWith("..") && !path.isAbsolute(rel)) {
-    return rel.length === 0 ? "." : rel;
-  }
-  return abs;
-}
-
-/**
- * Build directory override string passed into `resolveConfig` inside a worktree.
- *
- * @param options - Main project cwd, resolved main config, and optional CLI `buildDir` flag.
- * @returns Relative `buildDir` override, `undefined` when not derivable safely.
- */
-function buildDirOverrideForWorktreeResolve(options: {
-  projectCwdAbs: string;
-  projectConfig: Awaited<ReturnType<typeof resolveConfig>>;
-  buildDirFlag?: string;
-}): string | undefined {
-  const rawFlag = options.buildDirFlag?.trim();
-  if (rawFlag) return rawFlag;
-  const abs = options.projectConfig.buildDir;
-  if (!abs) return undefined;
-  const anchor = options.projectConfig.configPath
-    ? path.dirname(options.projectConfig.configPath)
-    : options.projectCwdAbs;
-  const normalized = path.normalize(abs);
-  let rel = path.relative(anchor, normalized);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) {
-    rel = path.relative(options.projectCwdAbs, normalized);
-  }
-  if (rel.startsWith("..") || path.isAbsolute(rel)) return undefined;
-  return rel.length === 0 ? "." : rel;
+async function configPathForCompareWorktree(options: {
+  worktreeCwd: string;
+  mappedInCheckout: string | undefined;
+  mainResolvedConfigPath: string | undefined;
+}): Promise<string | undefined> {
+  const tryAccess = async (p: string | undefined): Promise<string | undefined> => {
+    if (!p?.trim()) return undefined;
+    const abs = path.isAbsolute(p)
+      ? path.normalize(p)
+      : path.resolve(options.worktreeCwd, p);
+    try {
+      await fs.access(abs);
+      return abs;
+    } catch {
+      return undefined;
+    }
+  };
+  return (
+    (await tryAccess(options.mappedInCheckout)) ??
+    (await tryAccess(options.mainResolvedConfigPath))
+  );
 }
 
 /**
@@ -189,7 +177,14 @@ async function resolveRefs(options: {
 /**
  * Resolves side config, installs deps if needed, runs build, and analyzes one compare side.
  *
- * @param options - Worktree paths, shared hints, audit/fail flags, and status callback.
+ * Same precedence as `bundlelens run` (config file → CLI flags; `buildCommand` / `buildDir`
+ * prompt if still missing). Uses the checkout’s `bundlelens.config.json` when present; if the
+ * worktree has no copy (often untracked / not committed), falls back to the main tree config
+ * path. `outputDir` merges like run (then default `bundlelens`). Install:
+ * `install.command` from file, then
+ * `--install-command`, then the interactive picker (`ensureDependenciesIfNeeded`).
+ *
+ * @param options - Worktree paths, audit/fail flags, and status callback.
  * @returns Report, build failure flag, and resolved build paths/commands for reuse.
  */
 async function runOneSide(options: {
@@ -197,16 +192,15 @@ async function runOneSide(options: {
   worktreeCwd: string;
   checkoutRoot: string;
   gitRoot: string;
-  outputScratchDir: string;
   config: Awaited<ReturnType<typeof resolveConfig>>;
-  projectCwdAbs: string;
+  buildCommandFlag?: string;
   buildDirFlag?: string;
+  outputDirFlag?: string;
   audit: boolean;
   failOnBuild: boolean;
   onStatus: (msg: string) => void;
-  sharedBuildCommand?: string;
-  sharedBuildDir?: string;
-  sharedInstallCommand?: string;
+  /** Same role as `run`: overrides `install.command` from file after merge. */
+  installCommandFlag?: string;
   promptHooks?: ComparePromptHooks;
 }): Promise<{
   report: BundleLensReport;
@@ -219,74 +213,77 @@ async function runOneSide(options: {
     worktreeCwd,
     checkoutRoot,
     gitRoot,
-    outputScratchDir,
     config,
-    projectCwdAbs,
+    buildCommandFlag,
     buildDirFlag,
+    outputDirFlag,
     audit,
     failOnBuild,
     onStatus,
-    sharedBuildCommand,
-    sharedBuildDir,
-    sharedInstallCommand,
+    installCommandFlag,
     promptHooks,
   } = options;
 
-  const sideConfigPath = configPathInCheckout({
+  const mappedInCheckout = configPathInCheckout({
     gitRoot,
     checkoutRoot,
     resolvedConfigPath: config.configPath,
   });
-
-  const sideConfig = await resolveConfig(worktreeCwd, {
-    outputDir: outputScratchDir,
-    audit,
-    failOnBuild,
-    configPath: sideConfigPath,
-    buildDir: buildDirOverrideForWorktreeResolve({
-      projectCwdAbs,
-      projectConfig: config,
-      buildDirFlag,
-    }),
+  const effectiveConfigPath = await configPathForCompareWorktree({
+    worktreeCwd,
+    mappedInCheckout,
+    mainResolvedConfigPath: config.configPath,
   });
 
-  let cmd = sideConfig.buildCommand?.trim() || sharedBuildCommand?.trim();
+  const sideConfig = await resolveConfig(worktreeCwd, {
+    outputDir: outputDirFlag?.trim() || undefined,
+    audit,
+    failOnBuild,
+    configPath: effectiveConfigPath,
+    buildCommand: buildCommandFlag?.trim() || undefined,
+    buildDir: buildDirFlag?.trim() || undefined,
+  });
+
+  let cmd = sideConfig.buildCommand?.trim();
   if (!cmd) {
     cmd = await promptRequiredValue({
-      message: `${options.label}: build command not found in config. Enter command (e.g. npm run build)`,
+      message: `${options.label}: missing build command in config/flags. Enter command (e.g. npm run build)`,
       validateMessage: "Build command is required.",
-      nonInteractiveErrorMessage: `${options.label}: missing buildCommand in bundlelens.config.json (path: ${config.configPath ?? "—"}).`,
+      nonInteractiveErrorMessage: `${options.label}: missing buildCommand: set it in bundlelens.config.json for this ref, pass --build-command, or run in an interactive terminal.`,
       onBeforePrompt: () => promptHooks?.pause(),
       onAfterPrompt: () => promptHooks?.resume(),
     });
   }
   let buildDirAbs = sideConfig.buildDir;
-  if (!buildDirAbs && sharedBuildDir?.trim()) {
-    buildDirAbs = resolvePathInCwd(sharedBuildDir, worktreeCwd);
-  }
   if (!buildDirAbs) {
     const rawBuildDir = await promptRequiredValue({
-      message: `${options.label}: buildDir not found in config. Enter build output directory (e.g. dist, .next, out)`,
+      message: `${options.label}: missing buildDir in config/flags. Enter build output directory (e.g. dist, .next, out)`,
       validateMessage: "buildDir is required.",
-      nonInteractiveErrorMessage: `${options.label}: missing buildDir in config (same bundlelens.config.json as your project).`,
+      nonInteractiveErrorMessage: `${options.label}: missing buildDir: set it in bundlelens.config.json for this ref, pass --build-dir, or run in an interactive terminal.`,
       onBeforePrompt: () => promptHooks?.pause(),
       onAfterPrompt: () => promptHooks?.resume(),
     });
     buildDirAbs = resolvePathInCwd(rawBuildDir, worktreeCwd);
   }
 
+  const preferredInstallCommand =
+    sideConfig.install?.command?.trim() ||
+    installCommandFlag?.trim() ||
+    undefined;
+
   onStatus(`${options.label}: preparing dependencies…`);
+  await ensureNpmrcPackageLockTrue(worktreeCwd);
   const resolvedInstallCommand = await ensureDependenciesIfNeeded({
     label: options.label,
     cwd: worktreeCwd,
     onStatus,
-    preferredCommand: sideConfig.install?.command ?? sharedInstallCommand,
+    preferredCommand: preferredInstallCommand,
     onBeforeInteractivePrompt: () => promptHooks?.pause(),
     onAfterInteractivePrompt: () => promptHooks?.resume(),
   });
 
   onStatus(`${options.label}: running build…`);
-  const { build } = await runBuild(cmd, worktreeCwd, outputScratchDir);
+  const { build } = await runBuild(cmd, worktreeCwd, sideConfig.outputDir);
 
   const buildFailed =
     typeof build.exitCode === "number" && build.exitCode !== 0;
@@ -300,7 +297,7 @@ async function runOneSide(options: {
   const report = await analyzeBuildDir({
     mode: "run",
     buildDirAbs,
-    outputDirAbs: outputScratchDir,
+    outputDirAbs: sideConfig.outputDir,
     config: { ...sideConfig, audit },
     build,
     npmAuditCwd: worktreeCwd,
@@ -341,6 +338,7 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
   const config = await resolveConfig(cwd, {
     buildCommand: options.buildCommandFlag?.trim() || undefined,
     buildDir: options.buildDirFlag?.trim() || undefined,
+    outputDir: options.outputFlag?.trim() || undefined,
     audit: options.audit ?? auditFromArgv(argv),
     failOnBuild: options.failOnBuild ?? failOnBuildFromArgv(argv),
     configPath: options.configFlag,
@@ -354,9 +352,7 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
     configBase: config.compare?.baseBranch,
     configHead: config.compare?.headBranch,
   });
-  const outputDirAbs = options.outputFlag
-    ? resolvePathInCwd(options.outputFlag, cwd)
-    : path.join(config.outputDir, "compare");
+  const outputDirAbs = path.join(config.outputDir, "compare");
 
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "bundlelens-cmp-"));
   const cleanups: Array<() => Promise<void>> = [];
@@ -398,31 +394,20 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
     cleanups.push(headWt.remove);
     setSpinMsg(`Head worktree ready (${head}).`);
 
-    const scratchBase = path.join(tmpRoot, "out-base");
-    const scratchHead = path.join(tmpRoot, "out-head");
-    const projectCwdAbs = path.resolve(cwd);
-
     spin.start(`Analyzing base (${base})…`);
-    const {
-      report: baseReport,
-      buildFailed: baseFailed,
-      resolvedBuildCommand: baseResolvedCmd,
-      resolvedBuildDirAbs: baseResolvedBuildDirAbs,
-      resolvedInstallCommand: baseResolvedInstallCmd,
-    } = await runOneSide({
+    const { report: baseReport, buildFailed: baseFailed } = await runOneSide({
       label: `base (${base})`,
       worktreeCwd: baseWt.cwd,
       checkoutRoot: baseWt.root,
       gitRoot,
-      outputScratchDir: scratchBase,
       config,
-      projectCwdAbs,
+      buildCommandFlag: options.buildCommandFlag,
       buildDirFlag: options.buildDirFlag,
+      outputDirFlag: options.outputFlag,
       audit: config.audit,
       failOnBuild: config.failOnBuild,
       onStatus: setSpinMsg,
-      sharedBuildCommand: config.buildCommand,
-      sharedInstallCommand: config.install?.command,
+      installCommandFlag: options.installCommandFlag,
       promptHooks,
     });
     spin.stop();
@@ -434,19 +419,14 @@ export async function runCompare(options: CompareCliOptions): Promise<void> {
       worktreeCwd: headWt.cwd,
       checkoutRoot: headWt.root,
       gitRoot,
-      outputScratchDir: scratchHead,
       config,
-      projectCwdAbs,
+      buildCommandFlag: options.buildCommandFlag,
       buildDirFlag: options.buildDirFlag,
+      outputDirFlag: options.outputFlag,
       audit: config.audit,
       failOnBuild: config.failOnBuild,
       onStatus: setSpinMsg,
-      sharedBuildCommand: baseResolvedCmd,
-      sharedBuildDir: buildDirHintRelativeToCheckout(
-        baseResolvedBuildDirAbs,
-        baseWt.cwd
-      ),
-      sharedInstallCommand: baseResolvedInstallCmd ?? config.install?.command,
+      installCommandFlag: options.installCommandFlag,
       promptHooks,
     });
     spin.stop();

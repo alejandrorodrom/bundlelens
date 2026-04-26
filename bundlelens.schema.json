@@ -111,7 +111,7 @@
         "command": {
           "type": "string",
           "minLength": 1,
-          "description": "Install command to run when dependencies are missing (e.g. npm ci, pnpm install --frozen-lockfile). If omitted, BundleLens asks interactively."
+          "description": "Install command to run when dependencies are missing (e.g. npm install, pnpm install --frozen-lockfile). If omitted, BundleLens asks interactively."
         }
       }
     }

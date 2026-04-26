@@ -1,14 +1,12 @@
 import type { FileEntry, RankingItem, Rankings } from "../types/report.js";
 
 /**
- * @param items - Path/byte pairs to rank.
- * @returns New array sorted descending by `bytes`.
+ * @param items - Path/byte pairs to rank (mutated in place).
+ * @returns Same array reference, sorted descending by `bytes` (stable for ties).
  */
-function sortByBytes(
-  items: { path: string; bytes: number }[]
-): RankingItem[] {
+function sortByBytes(items: RankingItem[]): RankingItem[] {
   items.sort((a, b) => b.bytes - a.bytes);
-  return items as RankingItem[];
+  return items;
 }
 
 const ASSET_TYPES = new Set<string>([
@@ -30,35 +28,40 @@ const ASSET_TYPES = new Set<string>([
  * @returns Precomputed ranking tables for the HTML report.
  */
 export function buildRankings(files: FileEntry[]): Rankings {
-  const filesByRawBytes = sortByBytes(
-    files.map((f) => ({ path: f.path, bytes: f.rawBytes }))
-  );
-  const filesByGzipBytes = sortByBytes(
-    files.map((f) => ({ path: f.path, bytes: f.gzipBytes ?? 0 }))
-  );
-  const filesByBrotliBytes = sortByBytes(
-    files.map((f) => ({ path: f.path, bytes: f.brotliBytes ?? 0 }))
-  );
-  const javascriptByRawBytes = sortByBytes(
-    files
-      .filter((f) => f.type === "javascript")
-      .map((f) => ({ path: f.path, bytes: f.rawBytes }))
-  );
-  const cssByRawBytes = sortByBytes(
-    files
-      .filter((f) => f.type === "css")
-      .map((f) => ({ path: f.path, bytes: f.rawBytes }))
-  );
-  const assetsByRawBytes = sortByBytes(
-    files
-      .filter((f) => ASSET_TYPES.has(f.type))
-      .map((f) => ({ path: f.path, bytes: f.rawBytes }))
-  );
-  const sourceMapsByRawBytes = sortByBytes(
-    files
-      .filter((f) => f.type === "sourcemap")
-      .map((f) => ({ path: f.path, bytes: f.rawBytes }))
-  );
+  const filesByRawBytes: RankingItem[] = [];
+  const filesByGzipBytes: RankingItem[] = [];
+  const filesByBrotliBytes: RankingItem[] = [];
+  const javascriptByRawBytes: RankingItem[] = [];
+  const cssByRawBytes: RankingItem[] = [];
+  const assetsByRawBytes: RankingItem[] = [];
+  const sourceMapsByRawBytes: RankingItem[] = [];
+
+  for (const f of files) {
+    const filePath = f.path;
+    const raw = f.rawBytes;
+    filesByRawBytes.push({ path: filePath, bytes: raw });
+    filesByGzipBytes.push({ path: filePath, bytes: f.gzipBytes ?? 0 });
+    filesByBrotliBytes.push({ path: filePath, bytes: f.brotliBytes ?? 0 });
+    if (f.type === "javascript") {
+      javascriptByRawBytes.push({ path: filePath, bytes: raw });
+    } else if (f.type === "css") {
+      cssByRawBytes.push({ path: filePath, bytes: raw });
+    }
+    if (ASSET_TYPES.has(f.type)) {
+      assetsByRawBytes.push({ path: filePath, bytes: raw });
+    }
+    if (f.type === "sourcemap") {
+      sourceMapsByRawBytes.push({ path: filePath, bytes: raw });
+    }
+  }
+
+  sortByBytes(filesByRawBytes);
+  sortByBytes(filesByGzipBytes);
+  sortByBytes(filesByBrotliBytes);
+  sortByBytes(javascriptByRawBytes);
+  sortByBytes(cssByRawBytes);
+  sortByBytes(assetsByRawBytes);
+  sortByBytes(sourceMapsByRawBytes);
 
   return {
     filesByRawBytes,
