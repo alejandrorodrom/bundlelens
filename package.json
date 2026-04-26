@@ -7,9 +7,18 @@
     "bundlelens": "./dist/cli/index.js"
   },
   "main": "./dist/cli/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alejandrorodrom/bundlelens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alejandrorodrom/bundlelens/issues"
+  },
+  "homepage": "https://github.com/alejandrorodrom/bundlelens#readme",
   "files": [
     "dist",
-    "bundlelens.schema.json"
+    "bundlelens.schema.json",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -20,13 +29,28 @@
     "node": ">=18"
   },
   "keywords": [
+    "bundlelens",
     "build",
     "bundle",
+    "bundle-size",
+    "build-metrics",
     "analysis",
     "metrics",
-    "report"
+    "report",
+    "cli",
+    "gzip",
+    "brotli",
+    "webpack",
+    "vite",
+    "nextjs",
+    "audit",
+    "compare",
+    "git"
   ],
-  "author": "",
+  "author": {
+    "name": "Alejandro Rodriguez Romero",
+    "url": "https://www.linkedin.com/in/alejandro-rodriguez-romero/"
+  },
   "license": "MIT",
   "dependencies": {
     "@inquirer/prompts": "^7.10.1",
