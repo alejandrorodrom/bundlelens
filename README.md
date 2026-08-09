@@ -26,7 +26,10 @@ Framework-agnostic **command-line tool**: runs your build (or analyzes an existi
 10. [Comparing branches with Git](#comparing-branches-with-git)
 11. [Troubleshooting](#troubleshooting)
 12. [Development and npm publishing](#development-and-npm-publishing)
-13. [License](#license)
+13. [Contributing](#contributing)
+14. [License](#license)
+15. [Support](#support)
+16. [Sponsors](#sponsors)
 
 ---
 
@@ -629,16 +632,23 @@ End users usually consume the already compiled package; TypeScript is **not** re
 
 ---
 
-## License
+## Contributing
 
-**MIT** - see the repository `LICENSE` file if present, or the `license` field in `package.json`.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, lint/build checks, and PR guidelines.
 
 ---
 
-## Useful links
+## License
 
-- **Repository (code and issues):** [github.com/alejandrorodrom/bundlelens](https://github.com/alejandrorodrom/bundlelens)
-- **Author (LinkedIn):** [Alejandro Rodriguez Romero](https://www.linkedin.com/in/alejandro-rodriguez-romero/)
+**MIT** — see [LICENSE](LICENSE). [Alejandro Rodriguez Romero](https://www.linkedin.com/in/alejandro-rodriguez-romero/)
+
+---
+
+## Support
+
+- [GitHub Issues](https://github.com/alejandrorodrom/bundlelens/issues)
+- Security: [SECURITY.md](SECURITY.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - **Config JSON Schema:** `bundlelens.schema.json` (in installed package root or repo root).
 - **Terminal help:** `bundlelens --help`, `bundlelens run --help`, etc.
 
@@ -647,3 +657,12 @@ If anything in this README does not match your installed version, check version 
 ```bash
 bundlelens --version
 ```
+
+---
+
+## Sponsors
+
+If this project helps you, consider sponsoring:
+
+- [GitHub Sponsors](https://github.com/sponsors/alejandrorodrom)
+- [Ko-fi](https://ko-fi.com/alejandrorodriguezro)
