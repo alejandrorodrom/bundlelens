@@ -1,4 +1,4 @@
-import { execaCommand } from "execa";
+import { execa, parseCommandString } from "execa";
 
 /** Result of running a shell command via `execa`. */
 export type ShellResult = {
@@ -23,10 +23,7 @@ export async function runShellCommand(
 ): Promise<ShellResult> {
   const startedAt = new Date().toISOString();
   const start = performance.now();
-  const result = await execaCommand(command, {
-    cwd,
-    reject: false,
-  });
+  const result = await execa({ cwd, reject: false })`${parseCommandString(command)}`;
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
   const exitCode = result.exitCode ?? null;
