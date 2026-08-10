@@ -2,7 +2,7 @@
   <img src="docs/bundlelens-logo.png" alt="BundleLens" width="640" height="172" />
 </h1>
 
-[![npm version](https://img.shields.io/npm/v/bundlelens.svg)](https://www.npmjs.com/package/bundlelens) [![npm downloads](https://img.shields.io/npm/dm/bundlelens.svg)](https://www.npmjs.com/package/bundlelens) [![minified](https://img.shields.io/bundlephobia/min/bundlelens?label=minified&style=flat)](https://bundlephobia.com/package/bundlelens) [![minified + gzip](https://img.shields.io/bundlephobia/minzip/bundlelens?label=minified%20%2B%20gzip&style=flat)](https://bundlephobia.com/package/bundlelens) [![install size](https://packagephobia.com/badge?p=bundlelens)](https://packagephobia.com/result?p=bundlelens) [![License: MIT](https://img.shields.io/npm/l/bundlelens.svg)](https://github.com/alejandrorodrom/bundlelens/blob/main/LICENSE) [![GitHub stars](https://img.shields.io/github/stars/alejandrorodrom/bundlelens.svg)](https://github.com/alejandrorodrom/bundlelens/stargazers) [![CI](https://github.com/alejandrorodrom/bundlelens/actions/workflows/ci.yml/badge.svg)](https://github.com/alejandrorodrom/bundlelens/actions/workflows/ci.yml) [![npm audit](https://github.com/alejandrorodrom/bundlelens/actions/workflows/npm-audit.yml/badge.svg)](https://github.com/alejandrorodrom/bundlelens/actions/workflows/npm-audit.yml) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Node](https://img.shields.io/badge/node-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![npm version](https://img.shields.io/npm/v/bundlelens.svg)](https://www.npmjs.com/package/bundlelens) [![npm downloads](https://img.shields.io/npm/dm/bundlelens.svg)](https://www.npmjs.com/package/bundlelens) [![minified](https://img.shields.io/bundlephobia/min/bundlelens?label=minified&style=flat)](https://bundlephobia.com/package/bundlelens) [![minified + gzip](https://img.shields.io/bundlephobia/minzip/bundlelens?label=minified%20%2B%20gzip&style=flat)](https://bundlephobia.com/package/bundlelens) [![install size](https://packagephobia.com/badge?p=bundlelens)](https://packagephobia.com/result?p=bundlelens) [![License: MIT](https://img.shields.io/npm/l/bundlelens.svg)](https://github.com/alejandrorodrom/bundlelens/blob/main/LICENSE) [![GitHub stars](https://img.shields.io/github/stars/alejandrorodrom/bundlelens.svg)](https://github.com/alejandrorodrom/bundlelens/stargazers) [![CI](https://github.com/alejandrorodrom/bundlelens/actions/workflows/ci.yml/badge.svg)](https://github.com/alejandrorodrom/bundlelens/actions/workflows/ci.yml) [![npm audit](https://github.com/alejandrorodrom/bundlelens/actions/workflows/npm-audit.yml/badge.svg)](https://github.com/alejandrorodrom/bundlelens/actions/workflows/npm-audit.yml) [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 Framework-agnostic **command-line tool**: runs your build (or analyzes an existing folder), measures artifact sizes (raw, gzip, brotli), classifies files, generates rankings, and outputs an HTML/JSON report. It can optionally integrate **dependency auditing** based on your package manager (npm, pnpm, Yarn, Bun) and allows you to **compare two Git branches** in isolated environments (worktrees).
 
@@ -37,7 +37,7 @@ Framework-agnostic **command-line tool**: runs your build (or analyzes an existi
 
 | Requirement | Detail |
 |-------------|--------|
-| **Node.js** | **18 or higher** (`engines` in `package.json`) |
+| **Node.js** | **22 or higher** (`engines` in `package.json`) |
 | **Git** | Required only for the **`compare`** command |
 | **Network** | Needed if you enable **`audit: true`** (queries package registry) |
 
@@ -559,7 +559,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
       - run: npm ci
       - run: npm run build

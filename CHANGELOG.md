@@ -4,6 +4,13 @@ All notable changes to **BundleLens** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-08-09
+
+### Changed
+
+- **Breaking:** minimum supported Node.js version is now **≥ 22** (`engines` in `package.json`). Node.js 18 and 20 are no longer supported.
+- CI and documentation updated to match the new Node.js requirement.
+
 ## [1.0.4] - 2026-08-09
 
 ### Changed
@@ -53,5 +60,6 @@ First stable public release: full CLI, HTML/JSON reports, Git ref comparison, an
 - With no arguments, the CLI prints help and exits non-zero so scripts fail explicitly.
 - `compare` requires a Git repository; `base` and `head` must be different refs.
 
+[2.0.0]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v2.0.0
 [1.0.4]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v1.0.4
 [1.0.0]: https://github.com/alejandrorodrom/bundlelens
