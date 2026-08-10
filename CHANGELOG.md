@@ -4,6 +4,22 @@ All notable changes to **BundleLens** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-08-09
+
+### Changed
+
+- Updated packaged logo (`docs/bundlelens-logo.png`).
+- Expanded README with Contributing, Support, and Sponsors sections.
+- Bumped `fs-extra` to 11.4.0.
+
+### Security
+
+- Bumped transitive `brace-expansion` (dev) to 5.0.9.
+
+### Notes
+
+- Repository hygiene: `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, GitHub issue/PR templates, Dependabot, and funding links. CI Actions bumped to `checkout`/`setup-node` v7; ESLint tooling updated within current majors.
+
 ## [1.0.0] - 2026-04-26
 
 First stable public release: full CLI, HTML/JSON reports, Git ref comparison, and optional dependency auditing.
@@ -37,4 +53,5 @@ First stable public release: full CLI, HTML/JSON reports, Git ref comparison, an
 - With no arguments, the CLI prints help and exits non-zero so scripts fail explicitly.
 - `compare` requires a Git repository; `base` and `head` must be different refs.
 
+[1.0.4]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v1.0.4
 [1.0.0]: https://github.com/alejandrorodrom/bundlelens
