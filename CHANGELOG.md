@@ -10,8 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Breaking:** minimum supported Node.js version is now **≥ 22** (`engines` in `package.json`). Node.js 18 and 20 are no longer supported.
 - CI, README, CONTRIBUTING, and issue templates updated to match the new Node.js requirement.
-- **Breaking (runtime deps):** bumped `@inquirer/prompts` to **8.x** and `cac` to **7.x** (both require modern Node / ESM).
-- Migrated shell command execution from `execaCommand` to `execa` + `parseCommandString` (compatible with execa 9 and prepares for execa 10).
+- **Breaking (runtime deps):** bumped `@inquirer/prompts` to **8.x**, `cac` to **7.x**, and `execa` to **10.x** (require modern Node / ESM).
+- Migrated shell command execution from `execaCommand` to `execa` + `parseCommandString` (required by execa 10).
 - Dev tooling: `typescript` to **6.0.x**, `lint-staged` to **17.x**.
 
 ## [1.0.4] - 2026-08-09
