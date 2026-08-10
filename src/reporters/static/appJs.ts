@@ -708,6 +708,515 @@ export const APP_JS = `
     });
   }
 
+  function buildTreemapStubSection(fileCount) {
+    var box = el("div", { className: "files-stub" }, [
+      el("p", { className: "files-stub-text", text: "A spatial treemap of the " + fileCount + " indexed files (by folder path and size) lives on a separate page." }),
+      el("p", { className: "files-stub-meta", text: "Switch between raw, gzip, and brotli; zoom into folders; hover for details." }),
+      el("a", { className: "files-stub-btn", href: "./treemap.html", text: "Open file treemap →" })
+    ]);
+    return section("Treemap", box, {
+      id: "treemap",
+      className: "no-print",
+      lead: "Executive view with a link to the spatial file map."
+    });
+  }
+
+  var TREEMAP_TYPE_COLORS = {
+    javascript: "#4f8cff",
+    css: "#2dd4a8",
+    image: "#f59e3b",
+    font: "#c084fc",
+    sourcemap: "#94a3b8",
+    html: "#fbbf24",
+    json: "#7dd3fc",
+    wasm: "#fb7185",
+    media: "#2dd4bf",
+    other: "#a8b3c7"
+  };
+
+  function treemapTypeColor(type) {
+    return TREEMAP_TYPE_COLORS[type] || TREEMAP_TYPE_COLORS.other;
+  }
+
+  function treemapMetricBytes(file, metric) {
+    if (metric === "gzip") return file.gzipBytes;
+    if (metric === "brotli") return file.brotliBytes;
+    return file.rawBytes;
+  }
+
+  function filterTreemapFiles(files, metric, includeMaps) {
+    var out = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!includeMaps && (f.isSourceMap || f.type === "sourcemap")) continue;
+      var bytes = treemapMetricBytes(f, metric);
+      if (bytes == null || !(bytes > 0)) continue;
+      out.push(f);
+    }
+    return out;
+  }
+
+  function buildTreemapPathTree(files, metric) {
+    var root = { name: "", path: "", value: 0, type: null, children: {}, isLeaf: false };
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      var bytes = treemapMetricBytes(f, metric);
+      var parts = String(f.path || "").split("/").filter(function (p) { return p.length > 0; });
+      if (!parts.length) parts = [f.path || "(unnamed)"];
+      var node = root;
+      var acc = [];
+      for (var j = 0; j < parts.length; j++) {
+        var part = parts[j];
+        acc.push(part);
+        var isLast = j === parts.length - 1;
+        if (isLast) {
+          var leafKey = part + "\\0" + f.path;
+          node.children[leafKey] = {
+            name: part,
+            path: f.path,
+            value: bytes,
+            type: f.type || "other",
+            children: null,
+            isLeaf: true,
+            rawBytes: f.rawBytes,
+            gzipBytes: f.gzipBytes,
+            brotliBytes: f.brotliBytes
+          };
+        } else {
+          if (!node.children[part]) {
+            node.children[part] = {
+              name: part,
+              path: acc.join("/"),
+              value: 0,
+              type: null,
+              children: {},
+              isLeaf: false
+            };
+          }
+          node = node.children[part];
+        }
+      }
+    }
+    function finalize(n) {
+      if (n.isLeaf) return n.value;
+      var kids = [];
+      var sum = 0;
+      Object.keys(n.children).forEach(function (k) {
+        var c = n.children[k];
+        var v = finalize(c);
+        if (v > 0) {
+          kids.push(c);
+          sum += v;
+        }
+      });
+      kids.sort(function (a, b) { return b.value - a.value; });
+      n.children = kids;
+      n.value = sum;
+      return sum;
+    }
+    finalize(root);
+    root.name = "(root)";
+    root.path = "";
+    return root;
+  }
+
+  function squarifyLayout(nodes, x, y, w, h) {
+    var rects = [];
+    if (!nodes || !nodes.length || w <= 0 || h <= 0) return rects;
+
+    var items = [];
+    for (var t = 0; t < nodes.length; t++) {
+      if (nodes[t].value > 0) items.push({ node: nodes[t], value: nodes[t].value });
+    }
+    if (!items.length) return rects;
+
+    function sumValues(list) {
+      var s = 0;
+      for (var i = 0; i < list.length; i++) s += list[i].value;
+      return s;
+    }
+
+    function worst(row, length, rowSum) {
+      if (!row.length || !(rowSum > 0) || !(length > 0)) return Infinity;
+      var max = 0;
+      var min = Infinity;
+      for (var i = 0; i < row.length; i++) {
+        var v = row[i].value;
+        if (v > max) max = v;
+        if (v < min) min = v;
+      }
+      var s2 = rowSum * rowSum;
+      var l2 = length * length;
+      return Math.max((l2 * max) / s2, s2 / (l2 * min));
+    }
+
+    function layoutRow(row, x0, y0, w0, h0, horizontal, remainingTotal) {
+      var s = sumValues(row);
+      if (!(s > 0) || !(remainingTotal > 0)) return 0;
+      if (horizontal) {
+        var rowH = (s / remainingTotal) * h0;
+        var cx = x0;
+        for (var j = 0; j < row.length; j++) {
+          var rw = (row[j].value / s) * w0;
+          rects.push({ node: row[j].node, x: cx, y: y0, w: rw, h: rowH });
+          cx += rw;
+        }
+        return rowH;
+      }
+      var rowW = (s / remainingTotal) * w0;
+      var cy = y0;
+      for (var k = 0; k < row.length; k++) {
+        var rh = (row[k].value / s) * h0;
+        rects.push({ node: row[k].node, x: x0, y: cy, w: rowW, h: rh });
+        cy += rh;
+      }
+      return rowW;
+    }
+
+    function step(remaining, x0, y0, w0, h0) {
+      if (!remaining.length || w0 <= 0 || h0 <= 0) return;
+      var remainingTotal = sumValues(remaining);
+      if (!(remainingTotal > 0)) return;
+      var horizontal = w0 >= h0;
+      var length = horizontal ? w0 : h0;
+      var row = [];
+      var rowSum = 0;
+      while (remaining.length) {
+        var candidate = remaining[0];
+        var nextSum = rowSum + candidate.value;
+        var nextRow = row.concat([candidate]);
+        if (row.length && worst(nextRow, length, nextSum) > worst(row, length, rowSum)) break;
+        row = nextRow;
+        rowSum = nextSum;
+        remaining.shift();
+      }
+      var used = layoutRow(row, x0, y0, w0, h0, horizontal, remainingTotal);
+      if (horizontal) {
+        step(remaining, x0, y0 + used, w0, h0 - used);
+      } else {
+        step(remaining, x0 + used, y0, w0 - used, h0);
+      }
+    }
+
+    step(items.slice(), x, y, w, h);
+    return rects;
+  }
+
+  function buildTreemapSection(report) {
+    var files = report.files || [];
+    var state = {
+      metric: "raw",
+      includeMaps: false,
+      stack: []
+    };
+
+    var wrap = el("div", { className: "treemap-ui" }, []);
+    var toolbar = el("div", { className: "treemap-toolbar no-print" }, []);
+    var metricGroup = el("div", { className: "treemap-metric-group" }, [
+      el("span", { className: "treemap-toolbar-label", text: "Size" })
+    ]);
+    var metrics = [
+      ["raw", "Raw"],
+      ["gzip", "Gzip"],
+      ["brotli", "Brotli"]
+    ];
+    var metricBtns = {};
+    metrics.forEach(function (pair) {
+      var btn = el("button", {
+        type: "button",
+        className: "treemap-metric-btn" + (pair[0] === state.metric ? " is-active" : ""),
+        "data-metric": pair[0],
+        text: pair[1]
+      });
+      metricBtns[pair[0]] = btn;
+      metricGroup.appendChild(btn);
+    });
+    toolbar.appendChild(metricGroup);
+
+    var mapsLabel = el("label", { className: "treemap-maps-toggle" }, []);
+    var mapsCb = el("input", { type: "checkbox" });
+    mapsCb.checked = state.includeMaps;
+    mapsLabel.appendChild(mapsCb);
+    mapsLabel.appendChild(document.createTextNode(" Include source maps"));
+    toolbar.appendChild(mapsLabel);
+
+    var legend = el("div", { className: "treemap-legend no-print" }, []);
+    Object.keys(TREEMAP_TYPE_COLORS).forEach(function (type) {
+      var swatch = el("span", { className: "treemap-legend-swatch", "data-type": type });
+      swatch.style.backgroundColor = TREEMAP_TYPE_COLORS[type];
+      legend.appendChild(el("span", { className: "treemap-legend-item" }, [
+        swatch,
+        el("span", { text: type })
+      ]));
+    });
+
+    var crumb = el("div", { className: "treemap-breadcrumb no-print" }, []);
+    var stage = el("div", { className: "treemap-stage" }, []);
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "treemap-svg");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "File size treemap");
+    stage.appendChild(svg);
+
+    var tooltip = el("div", { className: "treemap-tooltip", hidden: "hidden" }, []);
+    var emptyMsg = el("p", { className: "treemap-empty", text: "" });
+    emptyMsg.hidden = true;
+
+    wrap.appendChild(toolbar);
+    wrap.appendChild(legend);
+    wrap.appendChild(crumb);
+    wrap.appendChild(stage);
+    wrap.appendChild(tooltip);
+    wrap.appendChild(emptyMsg);
+
+    function hideTooltip() {
+      tooltip.hidden = true;
+      tooltip.textContent = "";
+    }
+
+    function showTooltip(evt, node, bytes) {
+      var lines = [
+        node.path || node.name || "(root)",
+        (node.isLeaf ? (node.type || "other") + " · " : "folder · ") + fmtBytes(bytes)
+      ];
+      if (node.isLeaf) {
+        lines.push(
+          "raw " + fmtBytes(node.rawBytes || 0) +
+          " · gzip " + (node.gzipBytes == null ? "n/a" : fmtBytes(node.gzipBytes)) +
+          " · brotli " + (node.brotliBytes == null ? "n/a" : fmtBytes(node.brotliBytes))
+        );
+      }
+      tooltip.textContent = "";
+      lines.forEach(function (line, idx) {
+        if (idx) tooltip.appendChild(el("br"));
+        tooltip.appendChild(document.createTextNode(line));
+      });
+      tooltip.hidden = false;
+      var pad = 12;
+      var tw = tooltip.offsetWidth || 180;
+      var th = tooltip.offsetHeight || 48;
+      var left = evt.clientX + pad;
+      var top = evt.clientY + pad;
+      if (left + tw > window.innerWidth - 8) left = evt.clientX - tw - pad;
+      if (top + th > window.innerHeight - 8) top = evt.clientY - th - pad;
+      tooltip.style.left = left + "px";
+      tooltip.style.top = top + "px";
+    }
+
+    function currentRoot(tree) {
+      var node = tree;
+      for (var i = 0; i < state.stack.length; i++) {
+        var want = state.stack[i];
+        var kids = node.children || [];
+        var found = null;
+        for (var k = 0; k < kids.length; k++) {
+          if (kids[k].path === want || kids[k].name === want) {
+            found = kids[k];
+            break;
+          }
+        }
+        if (!found) break;
+        node = found;
+      }
+      return node;
+    }
+
+    function renderBreadcrumb() {
+      crumb.textContent = "";
+      var rootBtn = el("button", { type: "button", className: "treemap-crumb-btn", text: "root" });
+      rootBtn.addEventListener("click", function () {
+        state.stack = [];
+        render();
+      });
+      crumb.appendChild(rootBtn);
+      for (var i = 0; i < state.stack.length; i++) {
+        (function (idx) {
+          crumb.appendChild(el("span", { className: "treemap-crumb-sep", text: "/" }));
+          var label = state.stack[idx].split("/").pop() || state.stack[idx];
+          var btn = el("button", { type: "button", className: "treemap-crumb-btn", text: label });
+          btn.addEventListener("click", function () {
+            state.stack = state.stack.slice(0, idx + 1);
+            render();
+          });
+          crumb.appendChild(btn);
+        })(i);
+      }
+    }
+
+    function render() {
+      Object.keys(metricBtns).forEach(function (m) {
+        metricBtns[m].className = "treemap-metric-btn" + (m === state.metric ? " is-active" : "");
+      });
+      mapsCb.checked = state.includeMaps;
+
+      var filtered = filterTreemapFiles(files, state.metric, state.includeMaps);
+      var tree = buildTreemapPathTree(filtered, state.metric);
+      renderBreadcrumb();
+      var focus = currentRoot(tree);
+
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      hideTooltip();
+
+      if (!focus || !(focus.value > 0)) {
+        emptyMsg.hidden = false;
+        emptyMsg.textContent = filtered.length
+          ? "Nothing to show at this zoom level for the selected metric."
+          : "No files match the current filters (try another size metric or include source maps).";
+        stage.classList.add("is-empty");
+        return;
+      }
+      emptyMsg.hidden = true;
+      stage.classList.remove("is-empty");
+
+      var width = Math.max(320, stage.clientWidth || 960);
+      var height = Math.max(360, Math.min(640, Math.round(width * 0.62)));
+      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+      svg.setAttribute("width", "100%");
+      svg.setAttribute("height", String(height));
+
+      var PAD = 1.5;
+      var HEADER_H = 18;
+
+      function attachHover(g, n) {
+        g.addEventListener("mousemove", function (evt) {
+          showTooltip(evt, n, n.value);
+        });
+        g.addEventListener("mouseleave", hideTooltip);
+      }
+
+      function paintLeaf(n, x, y, w, h) {
+        if (w < 0.5 || h < 0.5) return;
+        var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "treemap-cell is-leaf");
+        var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", String(x));
+        rect.setAttribute("y", String(y));
+        rect.setAttribute("width", String(w));
+        rect.setAttribute("height", String(h));
+        rect.setAttribute("fill", treemapTypeColor(n.type));
+        rect.setAttribute("stroke", "#0c1017");
+        rect.setAttribute("stroke-width", "1");
+        g.appendChild(rect);
+        if (w > 44 && h > 22) {
+          var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          label.setAttribute("x", String(x + 6));
+          label.setAttribute("y", String(y + 14));
+          label.setAttribute("class", "treemap-label");
+          var maxChars = Math.max(4, Math.floor((w - 10) / 6.5));
+          var name = n.name || "";
+          label.textContent = name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name;
+          g.appendChild(label);
+          if (h > 36) {
+            var sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            sub.setAttribute("x", String(x + 6));
+            sub.setAttribute("y", String(y + 28));
+            sub.setAttribute("class", "treemap-label-sub");
+            sub.textContent = fmtBytes(n.value);
+            g.appendChild(sub);
+          }
+        }
+        attachHover(g, n);
+        svg.appendChild(g);
+      }
+
+      function paintFolder(n, x, y, w, h, depth) {
+        if (w < 0.5 || h < 0.5) return;
+        var header = depth > 0 && h > HEADER_H + 8 ? HEADER_H : 0;
+        var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.setAttribute("class", "treemap-cell is-folder");
+        var frame = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        frame.setAttribute("x", String(x));
+        frame.setAttribute("y", String(y));
+        frame.setAttribute("width", String(w));
+        frame.setAttribute("height", String(h));
+        frame.setAttribute("fill", depth === 0 ? "transparent" : "#121a27");
+        frame.setAttribute("stroke", "rgba(107,154,255,0.45)");
+        frame.setAttribute("stroke-width", "1.25");
+        g.appendChild(frame);
+        if (header > 0) {
+          var head = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          head.setAttribute("x", String(x));
+          head.setAttribute("y", String(y));
+          head.setAttribute("width", String(w));
+          head.setAttribute("height", String(header));
+          head.setAttribute("fill", "#243044");
+          g.appendChild(head);
+          if (w > 36) {
+            var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", String(x + 6));
+            label.setAttribute("y", String(y + 13));
+            label.setAttribute("class", "treemap-label treemap-folder-label");
+            var maxChars = Math.max(3, Math.floor((w - 10) / 6.5));
+            var name = n.name || "";
+            label.textContent = name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name;
+            g.appendChild(label);
+          }
+        }
+        attachHover(g, n);
+        g.addEventListener("click", function (evt) {
+          evt.stopPropagation();
+          state.stack.push(n.path || n.name);
+          render();
+        });
+        svg.appendChild(g);
+
+        var innerX = x + PAD;
+        var innerY = y + header + PAD;
+        var innerW = w - PAD * 2;
+        var innerH = h - header - PAD * 2;
+        if (innerW > 1 && innerH > 1) {
+          paintChildren(n.children || [], innerX, innerY, innerW, innerH, depth + 1);
+        }
+      }
+
+      function paintChildren(children, x, y, w, h, depth) {
+        var layoutNodes = (children || []).filter(function (n) { return n.value > 0; });
+        if (!layoutNodes.length) return;
+        var rects = squarifyLayout(layoutNodes, x, y, w, h);
+        rects.forEach(function (r) {
+          var n = r.node;
+          var rx = r.x + PAD * 0.35;
+          var ry = r.y + PAD * 0.35;
+          var rw = Math.max(0, r.w - PAD * 0.7);
+          var rh = Math.max(0, r.h - PAD * 0.7);
+          if (n.isLeaf) paintLeaf(n, rx, ry, rw, rh);
+          else paintFolder(n, rx, ry, rw, rh, depth);
+        });
+      }
+
+      if (focus.isLeaf) {
+        paintLeaf(focus, PAD, PAD, width - PAD * 2, height - PAD * 2);
+      } else {
+        paintChildren(focus.children || [], 0, 0, width, height, 0);
+      }
+    }
+
+    Object.keys(metricBtns).forEach(function (m) {
+      metricBtns[m].addEventListener("click", function () {
+        state.metric = m;
+        state.stack = [];
+        render();
+      });
+    });
+    mapsCb.addEventListener("change", function () {
+      state.includeMaps = !!mapsCb.checked;
+      state.stack = [];
+      render();
+    });
+
+    // Defer first layout so stage has a measured width.
+    requestAnimationFrame(function () { render(); });
+    window.addEventListener("resize", function () {
+      render();
+    });
+
+    return section("Treemap", wrap, {
+      id: "treemap",
+      lead: "Rectangle area is proportional to the selected size metric. Click a folder to zoom; use the breadcrumb to go back.",
+      leadClassName: "no-print"
+    });
+  }
+
   function buildInsightsSection(report) {
     var ins = report.insights;
     if (!ins) return null;
@@ -1285,6 +1794,15 @@ export const APP_JS = `
     return;
   }
 
+  if (view === "treemap") {
+    if (report.files && report.files.length) {
+      root.appendChild(buildTreemapSection(report));
+    } else {
+      root.appendChild(el("p", { className: "section-lead", text: "No files are available in this report." }));
+    }
+    return;
+  }
+
   if (view === "rankings") {
     root.appendChild(buildRankingsSection(report));
     return;
@@ -1299,7 +1817,10 @@ export const APP_JS = `
   if (build) tocLinks.push(["build", "Build"]);
   if (sum.byType && sum.byType.length) tocLinks.push(["composition", "Composition"]);
   if (report.audit) tocLinks.push(["vulnerabilities", "Vulnerabilities"]);
-  if (report.files && report.files.length) tocLinks.push(["files", "Files"]);
+  if (report.files && report.files.length) {
+    tocLinks.push(["files", "Files"]);
+    tocLinks.push(["treemap", "Treemap"]);
+  }
   tocLinks.push(["rankings", "Rankings"]);
   var dist = report.distributions || {};
   if (Object.keys(dist).length) tocLinks.push(["distributions", "Distributions"]);
@@ -1380,6 +1901,7 @@ export const APP_JS = `
 
   if (report.files && report.files.length) {
     root.appendChild(buildFilesStubSection(report.files.length));
+    root.appendChild(buildTreemapStubSection(report.files.length));
   }
 
   root.appendChild(buildRankingsStubSection());

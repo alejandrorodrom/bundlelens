@@ -1,4 +1,4 @@
-/** Shared report stylesheet (single bundle for index/files/rankings/compare views). */
+/** Shared report stylesheet (single bundle for index/files/rankings/treemap/compare views). */
 export const APP_CSS = `
 :root {
   --bg: #0c1017;
@@ -168,6 +168,189 @@ a.bl-action-link {
   color: var(--text);
   border-color: var(--text);
   text-decoration: none;
+}
+.treemap-ui {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.treemap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+.treemap-toolbar-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-right: 0.35rem;
+}
+.treemap-metric-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.treemap-metric-btn {
+  appearance: none;
+  cursor: pointer;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.treemap-metric-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.treemap-metric-btn.is-active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.treemap-metric-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+.treemap-maps-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.treemap-maps-toggle input {
+  accent-color: var(--accent);
+}
+.treemap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+}
+.treemap-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.treemap-legend-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1px solid rgba(232, 237, 245, 0.25);
+  background-color: var(--muted);
+}
+.treemap-label.treemap-folder-label {
+  fill: #c5d0e0;
+  font-size: 10px;
+  font-weight: 650;
+}
+.treemap-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.2rem;
+  font-size: 0.88rem;
+}
+.treemap-crumb-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+  font: inherit;
+  font-weight: 600;
+}
+.treemap-crumb-btn:hover {
+  background: var(--accent-soft);
+  text-decoration: underline;
+}
+.treemap-crumb-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+.treemap-crumb-sep {
+  color: var(--muted);
+  user-select: none;
+}
+.treemap-stage {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #0b0f14;
+  overflow: hidden;
+  min-height: 360px;
+}
+.treemap-stage.is-empty {
+  display: none;
+}
+.treemap-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.treemap-cell {
+  cursor: default;
+}
+.treemap-cell.is-folder {
+  cursor: pointer;
+}
+.treemap-cell:hover rect {
+  filter: brightness(1.12);
+}
+.treemap-label,
+.treemap-label-sub {
+  fill: var(--text);
+  font-size: 11px;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(12, 16, 23, 0.75);
+  stroke-width: 3px;
+}
+.treemap-label {
+  font-weight: 650;
+}
+.treemap-label-sub {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.treemap-tooltip {
+  position: fixed;
+  z-index: 40;
+  max-width: min(28rem, calc(100vw - 1.5rem));
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-elevated);
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.treemap-empty {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 0.9rem;
+  background: #0b0f14;
 }
 main {
   padding: 1.25rem 1.25rem 1.75rem;

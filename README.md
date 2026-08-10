@@ -511,6 +511,7 @@ After **`run`** or **`analyze`**, in **`outputDir`** (e.g. `./bundlelens/`) you 
 | **`index.html`** | Main report (metrics and links to other views). |
 | **`rankings.html`** | Size rankings. |
 | **`files.html`** | Per-file detail (only if files were indexed). |
+| **`treemap.html`** | Spatial file-size map by path (only if files were indexed). |
 | **`report.json`** | Same information as JSON (useful for pipelines). |
 | **Static assets** | Shared CSS/JS generated next to HTML. |
 

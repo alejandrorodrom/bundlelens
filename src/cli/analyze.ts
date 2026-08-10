@@ -70,7 +70,10 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
     printAnalyzerNotices(notices);
 
     spin.start("Writing report…");
-    const { filesPath } = await generateReport(report, outputDirAbs);
+    const { filesPath, treemapPath } = await generateReport(
+      report,
+      outputDirAbs
+    );
     spin.stop("Report written.");
 
     printTerminalSummary(report);
@@ -78,6 +81,9 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
     console.log(`Rankings: ${outputDirAbs}/rankings.html`);
     if (filesPath) {
       console.log(`Files: ${outputDirAbs}/files.html`);
+    }
+    if (treemapPath) {
+      console.log(`Treemap: ${outputDirAbs}/treemap.html`);
     }
   } catch (e) {
     spin.fail(
