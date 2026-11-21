@@ -27,6 +27,11 @@ cli
   )
   .option("--no-audit", "Skip npm audit for this run")
   .option(
+    "--composition",
+    "Attribute JS/CSS bytes to packages via source maps (off by default)"
+  )
+  .option("--no-composition", "Skip module composition even if enabled in config")
+  .option(
     "--fail-on-build",
     "Exit with the build command's non-zero exit code (off by default; see failOnBuild in config)"
   )
@@ -67,6 +72,11 @@ cli
     "Run npm audit (on by default; use to override audit:false in config)"
   )
   .option("--no-audit", "Skip npm audit for this run")
+  .option(
+    "--composition",
+    "Attribute JS/CSS bytes to packages via source maps (off by default)"
+  )
+  .option("--no-composition", "Skip module composition even if enabled in config")
   .action(async (buildDir: string | undefined, options: Record<string, unknown>) => {
     const argv = process.argv;
     try {

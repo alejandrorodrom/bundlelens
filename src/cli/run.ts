@@ -1,5 +1,5 @@
 import process from "node:process";
-import { auditFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
+import { auditFromArgv, compositionFromArgv, failOnBuildFromArgv } from "../utils/cliArgv.js";
 import { resolvePathInCwd } from "../utils/pathResolve.js";
 import { resolveConfig } from "../utils/config.js";
 import { runBuild } from "../core/runBuild.js";
@@ -31,6 +31,7 @@ export async function runRun(options: RunCliOptions): Promise<void> {
     buildDir: options.buildDir,
     outputDir: options.output,
     audit: auditFromArgv(argv),
+    composition: compositionFromArgv(argv),
     failOnBuild: failOnBuildFromArgv(argv),
     configPath: options.config,
   });

@@ -21,3 +21,15 @@ export function failOnBuildFromArgv(argv: string[]): boolean | undefined {
   if (argv.includes("--fail-on-build")) return true;
   return undefined;
 }
+
+/**
+ * Parses `--composition` / `--no-composition` from argv-style input.
+ *
+ * @param argv - Typically `process.argv`.
+ * @returns `true`/`false` when a flag is present; otherwise `undefined`.
+ */
+export function compositionFromArgv(argv: string[]): boolean | undefined {
+  if (argv.includes("--no-composition")) return false;
+  if (argv.includes("--composition")) return true;
+  return undefined;
+}

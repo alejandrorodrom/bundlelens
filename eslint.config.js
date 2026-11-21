@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: ["dist/**", "bundlelens/**", ".husky/**", "eslint.config.js"],
+    ignores: ["dist/**", "bundlelens/**", "bundlelens-report/**", ".husky/**", "eslint.config.js"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

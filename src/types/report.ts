@@ -222,6 +222,42 @@ export type BundleInsights = {
   nameHash: NameHashInsight;
 };
 
+/** One package (or synthetic bucket) in module composition. */
+export type CompositionPackage = {
+  id: string;
+  rawBytes: number;
+  percentOfAnalyzedRaw: number;
+  artifactCount: number;
+};
+
+/** Per-package contribution inside one generated artifact. */
+export type CompositionArtifactPackage = {
+  id: string;
+  rawBytes: number;
+  percentOfArtifactRaw: number;
+};
+
+/** Composition result for one JS/CSS artifact. */
+export type CompositionArtifact = {
+  path: string;
+  mapPath: string | null;
+  rawBytes: number;
+  packages: CompositionArtifactPackage[];
+  status: "ok" | "no-map" | "parse-error";
+  error?: string;
+};
+
+/**
+ * Module/package composition derived from source maps (null when the feature is off).
+ */
+export type CompositionReport = {
+  analyzedArtifactCount: number;
+  skippedArtifactCount: number;
+  totalAnalyzedRawBytes: number;
+  packagesByRawBytes: CompositionPackage[];
+  artifacts: CompositionArtifact[];
+};
+
 /** Complete output of `analyzeBuildDir` / `bundlelens run|analyze`. */
 export type BundleLensReport = {
   metadata: ReportMetadata;
@@ -234,6 +270,7 @@ export type BundleLensReport = {
   audit: AuditReport | null;
   thresholds: ThresholdResult[] | null;
   insights: BundleInsights;
+  composition: CompositionReport | null;
 };
 
 /** Payload for `compare.html` / `compare-report.json` (two full reports + refs). */

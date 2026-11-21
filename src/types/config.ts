@@ -50,6 +50,11 @@ export type InstallConfig = {
   command?: string;
 };
 
+/** Optional module composition from source maps (off by default). */
+export type CompositionConfig = {
+  enabled: boolean;
+};
+
 /** On-disk config merged with CLI flags by `resolveConfig`. */
 export type BundleLensConfig = {
   $schema?: string;
@@ -60,6 +65,7 @@ export type BundleLensConfig = {
   failOnBuild?: boolean;
   compression?: Partial<CompressionConfig>;
   thresholds?: Partial<ThresholdsConfig>;
+  composition?: Partial<CompositionConfig>;
   compare?: CompareConfig;
   install?: InstallConfig;
 };
@@ -77,6 +83,7 @@ export type ResolvedConfig = {
   failOnBuild: boolean;
   compression: ResolvedCompression;
   thresholds: ResolvedThresholds;
+  composition: CompositionConfig;
   configPath: string | undefined;
   compare?: CompareConfig;
   install?: InstallConfig;

@@ -91,6 +91,7 @@ export type CliOverrides = {
   outputDir?: string;
   audit?: boolean;
   failOnBuild?: boolean;
+  composition?: boolean;
   configPath?: string;
 };
 
@@ -138,6 +139,14 @@ export async function resolveConfig(
     categories: fileConfig.thresholds?.categories ?? {},
   };
 
+  const composition = {
+    enabled: boolFromFileOrOverride(
+      fileConfig.composition?.enabled,
+      overrides.composition,
+      false
+    ),
+  };
+
   const outputRel =
     fileConfig.outputDir ?? overrides.outputDir ?? "bundlelens";
 
@@ -157,6 +166,7 @@ export async function resolveConfig(
     failOnBuild,
     compression,
     thresholds,
+    composition,
     configPath,
     compare: fileConfig.compare,
     install: fileConfig.install,

@@ -19,6 +19,7 @@ yarn-error.log*
 
 # informe local del CLI (salida por defecto)
 /bundlelens/
+/bundlelens-report/
 
 # cobertura / caches
 coverage/

@@ -10,12 +10,12 @@ import {
 function htmlShell(options: {
   title: string;
   subtitle: string;
-  view: "index" | "files" | "rankings" | "treemap";
+  view: "index" | "files" | "rankings" | "treemap" | "modules";
   escapedJson: string;
 }): string {
   const { title, subtitle, view, escapedJson } = options;
   const headExtra =
-    view === "files" || view === "treemap"
+    view === "files" || view === "treemap" || view === "modules"
       ? `<style media="print">@page { size: landscape; margin: 0; }</style>`
       : undefined;
   return buildReportHtmlShell({
@@ -31,7 +31,7 @@ function htmlShell(options: {
   });
 }
 
-/** Writes `index.html`, optional `files.html` / `treemap.html`, `rankings.html`, and shared assets. */
+/** Writes `index.html`, optional detail pages, `rankings.html`, and shared assets. */
 export async function writeHtmlReport(
   report: BundleLensReport,
   outputDirAbs: string
@@ -39,6 +39,7 @@ export async function writeHtmlReport(
   indexPath: string;
   filesPath: string | null;
   treemapPath: string | null;
+  modulesPath: string | null;
   rankingsPath: string;
 }> {
   await writeReportStaticAssets(outputDirAbs);
@@ -48,7 +49,7 @@ export async function writeHtmlReport(
   const indexHtml = htmlShell({
     title: "BundleLens",
     subtitle:
-      "Build output metrics and key report insights. Use the sections below to open detailed views for files, size rankings, and the file treemap.",
+      "Build output metrics and key report insights. Use the sections below to open detailed views for files, size rankings, treemap, and package composition.",
     view: "index",
     escapedJson: escaped,
   });
@@ -81,6 +82,20 @@ export async function writeHtmlReport(
     treemapPath = treemapHtmlPath;
   }
 
+  let modulesPath: string | null = null;
+  if (report.composition) {
+    const modulesHtmlPath = path.join(outputDirAbs, "modules.html");
+    const pkgCount = report.composition.packagesByRawBytes?.length ?? 0;
+    const modulesHtml = htmlShell({
+      title: "BundleLens · Package composition",
+      subtitle: `<span class="no-print"><a href="./index.html">← Back to main report</a> · </span>Package contribution from source maps (${pkgCount} package bucket(s)).`,
+      view: "modules",
+      escapedJson: escaped,
+    });
+    await fs.writeFile(modulesHtmlPath, modulesHtml, "utf8");
+    modulesPath = modulesHtmlPath;
+  }
+
   const rankingsHtmlPath = path.join(outputDirAbs, "rankings.html");
   const rankingsHtml = htmlShell({
     title: "BundleLens · Rankings",
@@ -91,5 +106,11 @@ export async function writeHtmlReport(
   });
   await fs.writeFile(rankingsHtmlPath, rankingsHtml, "utf8");
 
-  return { indexPath, filesPath, treemapPath, rankingsPath: rankingsHtmlPath };
+  return {
+    indexPath,
+    filesPath,
+    treemapPath,
+    modulesPath,
+    rankingsPath: rankingsHtmlPath,
+  };
 }

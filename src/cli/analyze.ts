@@ -1,5 +1,5 @@
 import process from "node:process";
-import { auditFromArgv } from "../utils/cliArgv.js";
+import { auditFromArgv, compositionFromArgv } from "../utils/cliArgv.js";
 import { resolvePathInCwd } from "../utils/pathResolve.js";
 import { resolveConfig } from "../utils/config.js";
 import { analyzeBuildDir } from "../core/analyzeBuildDir.js";
@@ -30,6 +30,7 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
     buildDir: cliBuildDir,
     outputDir: options.output,
     audit: auditFromArgv(argv),
+    composition: compositionFromArgv(argv),
     configPath: options.config,
   });
 
@@ -70,7 +71,7 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
     printAnalyzerNotices(notices);
 
     spin.start("Writing report…");
-    const { filesPath, treemapPath } = await generateReport(
+    const { filesPath, treemapPath, modulesPath } = await generateReport(
       report,
       outputDirAbs
     );
@@ -84,6 +85,9 @@ export async function runAnalyze(options: AnalyzeCliOptions): Promise<void> {
     }
     if (treemapPath) {
       console.log(`Treemap: ${outputDirAbs}/treemap.html`);
+    }
+    if (modulesPath) {
+      console.log(`Modules: ${outputDirAbs}/modules.html`);
     }
   } catch (e) {
     spin.fail(

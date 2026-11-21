@@ -114,6 +114,17 @@
           "description": "Install command to run when dependencies are missing (e.g. npm install, pnpm install --frozen-lockfile). If omitted, BundleLens asks interactively."
         }
       }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Attribute generated JS/CSS bytes to packages using source maps (off by default).",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "When true, parse paired .map files and produce package composition in the report."
+        }
+      }
     }
   },
   "$defs": {

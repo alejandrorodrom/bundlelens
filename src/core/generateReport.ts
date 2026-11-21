@@ -18,11 +18,19 @@ export async function generateReport(
   indexPath: string;
   filesPath: string | null;
   treemapPath: string | null;
+  modulesPath: string | null;
   rankingsPath: string;
 }> {
   await fs.mkdir(outputDirAbs, { recursive: true });
   const jsonPath = await writeJsonReport(report, outputDirAbs);
-  const { indexPath, filesPath, treemapPath, rankingsPath } =
+  const { indexPath, filesPath, treemapPath, modulesPath, rankingsPath } =
     await writeHtmlReport(report, outputDirAbs);
-  return { jsonPath, indexPath, filesPath, treemapPath, rankingsPath };
+  return {
+    jsonPath,
+    indexPath,
+    filesPath,
+    treemapPath,
+    modulesPath,
+    rankingsPath,
+  };
 }

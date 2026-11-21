@@ -15,6 +15,7 @@ import { evaluateThresholds } from "../analyzers/thresholdAnalyzer.js";
 import { buildRankings } from "./rankings.js";
 import { readBundleLensVersion } from "../utils/version.js";
 import { buildInsights } from "../analyzers/insightsAnalyzer.js";
+import { buildCompositionReport } from "../analyzers/compositionAnalyzer.js";
 import { findPackageJsonDir } from "../utils/dependencies.js";
 import { nodeErrnoCode } from "../utils/nodeErrno.js";
 
@@ -208,6 +209,21 @@ export async function analyzeBuildDir(
 
   const insights = buildInsights(files, summary);
 
+  let composition: BundleLensReport["composition"] = null;
+  if (config.composition.enabled) {
+    onStatus?.("Analyzing package composition from source maps…");
+    composition = await buildCompositionReport({
+      buildDirAbs,
+      files,
+      onStatus,
+    });
+    if (composition.analyzedArtifactCount === 0) {
+      analysisNotices.push(
+        "Composition enabled but no usable source maps were found for JS/CSS artifacts. Enable sourcemaps in your bundler (e.g. Vite `build.sourcemap: true`) and keep `.map` files next to the output."
+      );
+    }
+  }
+
   let audit: BundleLensReport["audit"] = null;
   if (config.audit) {
     onStatus?.("Analyzing…");
@@ -235,6 +251,7 @@ export async function analyzeBuildDir(
     audit,
     thresholds,
     insights,
+    composition,
   };
 
   return report;

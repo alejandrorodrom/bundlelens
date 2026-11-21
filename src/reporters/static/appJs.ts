@@ -40,8 +40,16 @@ export const APP_JS = `
       }))
     ]);
     var tb = el("tbody", null, rows.map(function (r) {
-      return el("tr", null, r.map(function (cell, i) {
-        var td = el("td", { className: typeof cell === "number" ? "num" : "" }, [document.createTextNode(String(cell))]);
+      return el("tr", null, r.map(function (cell) {
+        var td = el("td", null, []);
+        if (cell && typeof cell === "object" && cell.nodeType) {
+          td.appendChild(cell);
+        } else if (typeof cell === "number") {
+          td.className = "num";
+          td.appendChild(document.createTextNode(String(cell)));
+        } else {
+          td.appendChild(document.createTextNode(String(cell)));
+        }
         return td;
       }));
     }));
@@ -728,7 +736,7 @@ export const APP_JS = `
     font: "#c084fc",
     sourcemap: "#94a3b8",
     html: "#fbbf24",
-    json: "#7dd3fc",
+    json: "#38bdf8",
     wasm: "#fb7185",
     media: "#2dd4bf",
     other: "#a8b3c7"
@@ -736,6 +744,60 @@ export const APP_JS = `
 
   function treemapTypeColor(type) {
     return TREEMAP_TYPE_COLORS[type] || TREEMAP_TYPE_COLORS.other;
+  }
+
+  var PACKAGE_COLOR_PALETTE = [
+    "#5b8def",
+    "#34d399",
+    "#f59e0b",
+    "#a78bfa",
+    "#f472b6",
+    "#22d3ee",
+    "#fb923c",
+    "#84cc16",
+    "#e879f9",
+    "#60a5fa",
+    "#f87171",
+    "#2dd4bf"
+  ];
+
+  function compositionPackageColor(id) {
+    if (id === "(project)") return "#5b8def";
+    if (id === "(unmapped)") return "#64748b";
+    var hash = 0;
+    for (var i = 0; i < id.length; i++) {
+      hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+    }
+    return PACKAGE_COLOR_PALETTE[Math.abs(hash) % PACKAGE_COLOR_PALETTE.length];
+  }
+
+  function packageLabelCell(id) {
+    var swatch = el("span", { className: "color-swatch" });
+    swatch.style.backgroundColor = compositionPackageColor(id);
+    var label = el("span", { className: "color-swatch-label", text: id });
+    if (id === "(unmapped)") label.className += " is-muted";
+    return el("span", { className: "color-swatch-row" }, [swatch, label]);
+  }
+
+  function statusBadge(status) {
+    var cls = "status-badge";
+    if (status === "ok") cls += " is-ok";
+    else if (status === "no-map") cls += " is-warn";
+    else cls += " is-err";
+    return el("span", { className: cls, text: status });
+  }
+
+  function appendLegend(container, items) {
+    var legend = el("div", { className: "treemap-legend no-print" }, []);
+    items.forEach(function (item) {
+      var swatch = el("span", { className: "treemap-legend-swatch" });
+      swatch.style.backgroundColor = item.color;
+      legend.appendChild(el("span", { className: "treemap-legend-item" }, [
+        swatch,
+        el("span", { text: item.label })
+      ]));
+    });
+    container.appendChild(legend);
   }
 
   function treemapMetricBytes(file, metric) {
@@ -941,7 +1003,14 @@ export const APP_JS = `
     toolbar.appendChild(mapsLabel);
 
     var legend = el("div", { className: "treemap-legend no-print" }, []);
-    Object.keys(TREEMAP_TYPE_COLORS).forEach(function (type) {
+    var presentTypes = {};
+    files.forEach(function (f) {
+      if (f && f.type) presentTypes[f.type] = true;
+    });
+    var typeKeys = Object.keys(presentTypes);
+    if (!typeKeys.length) typeKeys = Object.keys(TREEMAP_TYPE_COLORS);
+    typeKeys.sort().forEach(function (type) {
+      if (!TREEMAP_TYPE_COLORS[type]) return;
       var swatch = el("span", { className: "treemap-legend-swatch", "data-type": type });
       swatch.style.backgroundColor = TREEMAP_TYPE_COLORS[type];
       legend.appendChild(el("span", { className: "treemap-legend-item" }, [
@@ -1213,6 +1282,203 @@ export const APP_JS = `
     return section("Treemap", wrap, {
       id: "treemap",
       lead: "Rectangle area is proportional to the selected size metric. Click a folder to zoom; use the breadcrumb to go back.",
+      leadClassName: "no-print"
+    });
+  }
+
+  function buildCompositionStubSection(comp) {
+    var pkgCount = (comp.packagesByRawBytes || []).length;
+    var analyzed = comp.analyzedArtifactCount || 0;
+    var box = el("div", { className: "files-stub" }, [
+      el("p", { className: "files-stub-text", text: "Package composition attributed " + analyzed + " JS/CSS artifact(s) to " + pkgCount + " package bucket(s) via source maps." }),
+      el("p", { className: "files-stub-meta", text: "See which npm packages contribute the most bytes inside each chunk." }),
+      el("a", { className: "files-stub-btn", href: "./modules.html", text: "Open package composition →" })
+    ]);
+    return section("Package composition", box, {
+      id: "modules",
+      className: "no-print",
+      lead: "Executive view with a link to package-level attribution from source maps."
+    });
+  }
+
+  function buildCompositionSection(report) {
+    var comp = report.composition;
+    if (!comp) {
+      return el("p", { className: "section-lead", text: "Package composition is not available in this report." });
+    }
+
+    var wrap = el("div", { className: "modules-ui" }, []);
+    var summary = el("div", { className: "modules-summary" }, [
+      kvGrid([
+        ["Analyzed artifacts", String(comp.analyzedArtifactCount || 0)],
+        ["Skipped artifacts", String(comp.skippedArtifactCount || 0)],
+        ["Analyzed raw bytes", fmtBytes(comp.totalAnalyzedRawBytes || 0)],
+        ["Package buckets", String((comp.packagesByRawBytes || []).length)]
+      ])
+    ]);
+    wrap.appendChild(summary);
+
+    var glossary = el("div", { className: "modules-glossary" }, [
+      el("p", { className: "modules-glossary-title", text: "How to read package buckets" }),
+      el("ul", { className: "modules-glossary-list" }, [
+        el("li", null, [
+          packageLabelCell("(project)"),
+          el("span", { text: " — your app sources (paths that are not under node_modules)." })
+        ]),
+        el("li", null, [
+          packageLabelCell("(unmapped)"),
+          el("span", { text: " — generated bytes the source map does not assign to a source file (bundler glue, minification leftovers, or sparse maps)." })
+        ])
+      ])
+    ]);
+    wrap.appendChild(glossary);
+
+    var pkgs = comp.packagesByRawBytes || [];
+    if (pkgs.length) {
+      var legendItems = pkgs.slice(0, 12).map(function (p) {
+        return { label: p.id, color: compositionPackageColor(p.id) };
+      });
+      appendLegend(wrap, legendItems);
+
+      var pkgRows = pkgs.map(function (p) {
+        return [
+          packageLabelCell(p.id),
+          fmtBytes(p.rawBytes),
+          (p.percentOfAnalyzedRaw || 0).toFixed(2) + "%",
+          String(p.artifactCount)
+        ];
+      });
+      wrap.appendChild(section("Packages by raw bytes", el("div", { className: "table-scroll" }, [
+        table(["Package", "Raw", "% of analyzed", "Artifacts"], pkgRows)
+      ]), {
+        lead: "Global ranking across all successfully mapped JS/CSS artifacts. Colors match the treemap below."
+      }));
+    } else {
+      wrap.appendChild(el("p", { className: "modules-empty", text: "No package contributions were attributed. Enable sourcemaps in your bundler and keep .map files next to the build output." }));
+    }
+
+    var artifacts = (comp.artifacts || []).slice().sort(function (a, b) {
+      return (b.rawBytes || 0) - (a.rawBytes || 0);
+    });
+    var okArtifacts = artifacts.filter(function (a) { return a.status === "ok" && (a.packages || []).length; });
+
+    if (okArtifacts.length) {
+      var detail = el("div", { className: "modules-detail" }, []);
+      detail.appendChild(el("h3", { className: "audit-subtitle", text: "Per-artifact breakdown" }));
+
+      var select = el("select", { className: "modules-select", id: "modules-artifact-select" }, []);
+      okArtifacts.forEach(function (a, idx) {
+        var opt = el("option", { value: String(idx), text: a.path + " (" + fmtBytes(a.rawBytes) + ")" });
+        select.appendChild(opt);
+      });
+      detail.appendChild(select);
+
+      var tableHost = el("div", { className: "table-scroll modules-artifact-table" }, []);
+      var stage = el("div", { className: "treemap-stage modules-package-stage" }, []);
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "treemap-svg");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", "Package composition treemap");
+      stage.appendChild(svg);
+      detail.appendChild(tableHost);
+      detail.appendChild(stage);
+      wrap.appendChild(detail);
+
+      function renderArtifact(idx) {
+        var art = okArtifacts[idx];
+        if (!art) return;
+        var rows = (art.packages || []).map(function (p) {
+          return [
+            packageLabelCell(p.id),
+            fmtBytes(p.rawBytes),
+            (p.percentOfArtifactRaw || 0).toFixed(2) + "%"
+          ];
+        });
+        tableHost.textContent = "";
+        tableHost.appendChild(table(["Package", "Raw", "% of artifact"], rows));
+
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        var width = Math.max(320, stage.clientWidth || 960);
+        var height = Math.max(280, Math.min(480, Math.round(width * 0.45)));
+        svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+        svg.setAttribute("width", "100%");
+        svg.setAttribute("height", String(height));
+
+        var nodes = (art.packages || [])
+          .filter(function (p) { return p.rawBytes > 0; })
+          .map(function (p) {
+            return { name: p.id, path: p.id, value: p.rawBytes, type: null, children: null, isLeaf: true };
+          });
+        var rects = squarifyLayout(nodes, 0, 0, width, height);
+        rects.forEach(function (r) {
+          var n = r.node;
+          var gap = 1.5;
+          var rx = r.x + gap;
+          var ry = r.y + gap;
+          var rw = Math.max(0, r.w - gap * 2);
+          var rh = Math.max(0, r.h - gap * 2);
+          if (rw < 0.5 || rh < 0.5) return;
+          var fill = compositionPackageColor(n.name);
+          var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          g.setAttribute("class", "treemap-cell is-leaf");
+          var rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          rect.setAttribute("x", String(rx));
+          rect.setAttribute("y", String(ry));
+          rect.setAttribute("width", String(rw));
+          rect.setAttribute("height", String(rh));
+          rect.setAttribute("fill", fill);
+          rect.setAttribute("stroke", "#0c1017");
+          rect.setAttribute("stroke-width", "1");
+          g.appendChild(rect);
+          if (rw > 48 && rh > 22) {
+            var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", String(rx + 6));
+            label.setAttribute("y", String(ry + 14));
+            label.setAttribute("class", "treemap-label");
+            var maxChars = Math.max(4, Math.floor((rw - 10) / 6.5));
+            var name = n.name || "";
+            label.textContent = name.length > maxChars ? name.slice(0, maxChars - 1) + "…" : name;
+            g.appendChild(label);
+            if (rh > 36) {
+              var sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              sub.setAttribute("x", String(rx + 6));
+              sub.setAttribute("y", String(ry + 28));
+              sub.setAttribute("class", "treemap-label-sub");
+              sub.textContent = fmtBytes(n.value);
+              g.appendChild(sub);
+            }
+          }
+          var title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+          title.textContent = n.name + " · " + fmtBytes(n.value);
+          g.insertBefore(title, g.firstChild);
+          svg.appendChild(g);
+        });
+      }
+
+      select.addEventListener("change", function () {
+        renderArtifact(Number(select.value) || 0);
+      });
+      requestAnimationFrame(function () { renderArtifact(0); });
+      window.addEventListener("resize", function () {
+        renderArtifact(Number(select.value) || 0);
+      });
+    }
+
+    var skipped = artifacts.filter(function (a) { return a.status !== "ok"; });
+    if (skipped.length) {
+      var skipRows = skipped.map(function (a) {
+        return [a.path, statusBadge(a.status), a.mapPath || "—", a.error || "—"];
+      });
+      wrap.appendChild(section("Skipped / errored artifacts", el("div", { className: "table-scroll" }, [
+        table(["Path", "Status", "Map", "Error"], skipRows)
+      ]), {
+        lead: "Artifacts without a usable local source map, or maps that failed to parse."
+      }));
+    }
+
+    return section("Package composition", wrap, {
+      id: "modules",
+      lead: "Byte attribution from source-map mappings. Named rows are npm packages; (project) is app code; (unmapped) is generated output without a source mapping.",
       leadClassName: "no-print"
     });
   }
@@ -1803,6 +2069,11 @@ export const APP_JS = `
     return;
   }
 
+  if (view === "modules") {
+    root.appendChild(buildCompositionSection(report));
+    return;
+  }
+
   if (view === "rankings") {
     root.appendChild(buildRankingsSection(report));
     return;
@@ -1821,6 +2092,7 @@ export const APP_JS = `
     tocLinks.push(["files", "Files"]);
     tocLinks.push(["treemap", "Treemap"]);
   }
+  if (report.composition) tocLinks.push(["modules", "Packages"]);
   tocLinks.push(["rankings", "Rankings"]);
   var dist = report.distributions || {};
   if (Object.keys(dist).length) tocLinks.push(["distributions", "Distributions"]);
@@ -1902,6 +2174,10 @@ export const APP_JS = `
   if (report.files && report.files.length) {
     root.appendChild(buildFilesStubSection(report.files.length));
     root.appendChild(buildTreemapStubSection(report.files.length));
+  }
+
+  if (report.composition) {
+    root.appendChild(buildCompositionStubSection(report.composition));
   }
 
   root.appendChild(buildRankingsStubSection());
