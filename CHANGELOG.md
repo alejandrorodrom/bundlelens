@@ -4,6 +4,17 @@ All notable changes to **BundleLens** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-11-21
+
+### Changed
+
+- Runtime deps: `@inquirer/prompts` **8.7.5**, `cac` **7.1.0**, `execa` **10.2.1**, `fs-extra` **11.4.1**.
+- Dev tooling: `eslint` **10.15.0**, `typescript-eslint` **8.73.0**, `globals` **17.14.0**, `lint-staged` **17.6.0**.
+
+### Notes
+
+- Kept `@types/node` on **^22** to match `engines` / CI (Node 22+), rejecting the Dependabot major bump to 26.
+
 ## [2.2.0] - 2026-11-21
 
 ### Added
@@ -76,6 +87,7 @@ First stable public release: full CLI, HTML/JSON reports, Git ref comparison, an
 - With no arguments, the CLI prints help and exits non-zero so scripts fail explicitly.
 - `compare` requires a Git repository; `base` and `head` must be different refs.
 
+[2.2.1]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v2.2.1
 [2.2.0]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v2.2.0
 [2.1.0]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v2.1.0
 [2.0.0]: https://github.com/alejandrorodrom/bundlelens/releases/tag/v2.0.0
